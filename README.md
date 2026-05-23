@@ -90,7 +90,6 @@ ErenshorCombatParser/        Main mod (BepInEx plugin DLL)
 
 PerfectParseReport/          Standalone CLI report generator (EXE)
 
-dist/PerfectParse/           Distribution package with user-facing README
 reference/                   Implementation plan and decompiled game references
 ```
 
