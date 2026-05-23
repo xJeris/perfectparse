@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>PerfectParseReport</AssemblyName>
+    <RootNamespace>PerfectParseReport</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+  </PropertyGroup>
+
+  <!-- Share the IO source files from the main mod project -->
+  <ItemGroup>
+    <Compile Include="..\ErenshorCombatParser\IO\HtmlReportGenerator.cs" Link="IO\HtmlReportGenerator.cs" />
+    <Compile Include="..\ErenshorCombatParser\IO\HtmlTemplate.cs" Link="IO\HtmlTemplate.cs" />
+  </ItemGroup>
+
+</Project>
