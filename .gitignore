@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.csproj.user
+
+# Debug symbols
+*.pdb
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Decompiled game reference (large, not distributable)
+reference/ilspydata/
+
+# Distribution / release artifacts
+dist/
+*.zip
+
+# Palette preview (dev scratch)
+palette-preview.html
