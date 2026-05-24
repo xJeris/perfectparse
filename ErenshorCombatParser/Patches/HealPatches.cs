@@ -35,21 +35,10 @@ namespace ErenshorCombatParser.Patches
                     harmony.Patch(healFull,
                         postfix: new HarmonyMethod(self.GetMethod(nameof(HealMe_Full_Postfix),
                             BindingFlags.Static | BindingFlags.NonPublic)));
-                    Log.LogInfo("Patched Stats.HealMe(Spell,int,bool,bool,Character)");
                 }
                 else
                 {
                     Log.LogWarning("Stats.HealMe(Spell,int,bool,bool,Character) NOT FOUND");
-                    // List all HealMe overloads for diagnosis
-                    var methods = statsType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    foreach (var m in methods)
-                    {
-                        if (m.Name == "HealMe")
-                        {
-                            var ps = m.GetParameters();
-                            Log.LogInfo($"  Found HealMe({string.Join(",", Array.ConvertAll(ps, p => p.ParameterType.Name))})");
-                        }
-                    }
                 }
             }
             catch (Exception ex) { Log.LogError("HealMe(full) patch failed: " + ex); }
@@ -70,7 +59,6 @@ namespace ErenshorCombatParser.Patches
                             BindingFlags.Static | BindingFlags.NonPublic)),
                         postfix: new HarmonyMethod(self.GetMethod(nameof(HealMe_Simple_Postfix),
                             BindingFlags.Static | BindingFlags.NonPublic)));
-                    Log.LogInfo("Patched Stats.HealMe(int)");
                 }
                 else
                 {
@@ -93,7 +81,6 @@ namespace ErenshorCombatParser.Patches
                             BindingFlags.Static | BindingFlags.NonPublic)),
                         postfix: new HarmonyMethod(self.GetMethod(nameof(TickEffects_Postfix),
                             BindingFlags.Static | BindingFlags.NonPublic)));
-                    Log.LogInfo("Patched Stats.TickEffects (private)");
                 }
                 else
                 {
@@ -107,8 +94,6 @@ namespace ErenshorCombatParser.Patches
         // Postfix implementations
         // ============================================================
 
-        private static bool _loggedFirstHeal = false;
-
         static void HealMe_Full_Postfix(
             int __result,
             Stats __instance,
@@ -120,12 +105,6 @@ namespace ErenshorCombatParser.Patches
         {
             try
             {
-                if (!_loggedFirstHeal)
-                {
-                    Log.LogInfo($"HealMe_Full fired! spell={_spell?.SpellName}, amt={_amt}, result={__result}, isMana={_isMana}");
-                    _loggedFirstHeal = true;
-                }
-
                 CombatEventBus.EmitHeal(new HealEvent
                 {
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -148,8 +127,6 @@ namespace ErenshorCombatParser.Patches
         // Stats.HealMe(int) — simple heal prefix/postfix
         // ============================================================
         private static readonly Dictionary<int, int> _preHealHP = new Dictionary<int, int>();
-        private static bool _loggedFirstSimpleHeal = false;
-
         static void HealMe_Simple_Prefix(Stats __instance)
         {
             try
@@ -171,12 +148,6 @@ namespace ErenshorCombatParser.Patches
 
                 int actualHealed = __instance.CurrentHP - preHP;
                 if (actualHealed <= 0) return; // no healing occurred
-
-                if (!_loggedFirstSimpleHeal)
-                {
-                    Log.LogInfo($"HealMe_Simple fired! amt={_amt}, actual={actualHealed}");
-                    _loggedFirstSimpleHeal = true;
-                }
 
                 CombatEventBus.EmitHeal(new HealEvent
                 {
@@ -200,8 +171,6 @@ namespace ErenshorCombatParser.Patches
         // Stats.TickEffects — HoT tracking
         // ============================================================
         private static readonly Dictionary<int, int> _preTickHP = new Dictionary<int, int>();
-        private static bool _loggedFirstTick = false;
-
         static void TickEffects_Prefix(Stats __instance)
         {
             try
@@ -225,12 +194,6 @@ namespace ErenshorCombatParser.Patches
 
                 if (delta > 0)
                 {
-                    if (!_loggedFirstTick)
-                    {
-                        Log.LogInfo($"TickEffects HoT fired! delta={delta}");
-                        _loggedFirstTick = true;
-                    }
-
                     CombatEventBus.EmitHeal(new HealEvent
                     {
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),

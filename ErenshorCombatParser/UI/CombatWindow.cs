@@ -407,11 +407,14 @@ namespace ErenshorCombatParser.UI
             InitStyles();
             UpdateCache();
 
+            // Block game camera rotation while mouse is over our window
+            var mousePos = Event.current.mousePosition;
+            bool mouseOverWindow = WindowRect.Contains(mousePos);
+            if (mouseOverWindow)
+                GameData.DraggingUIElement = true;
+
             var savedSkin = GUI.skin;
             var savedColor = GUI.color;
-
-            // Handle resize dragging (must be processed before GUI.Window eats the events)
-            HandleResize();
 
             WindowRect = GUI.Window(_windowId, WindowRect, DrawWindowContents, "PerfectParse \u2014 Live");
 
@@ -421,41 +424,6 @@ namespace ErenshorCombatParser.UI
 
             GUI.skin = savedSkin;
             GUI.color = savedColor;
-        }
-
-        private void HandleResize()
-        {
-            // Resize grip area in screen coordinates (bottom-right corner of window)
-            var gripRect = new Rect(
-                WindowRect.xMax - ResizeHandleSize,
-                WindowRect.yMax - ResizeHandleSize,
-                ResizeHandleSize,
-                ResizeHandleSize);
-
-            var e = Event.current;
-
-            if (e.type == EventType.MouseDown && e.button == 0 && gripRect.Contains(e.mousePosition))
-            {
-                _isResizing = true;
-                _resizeDragStart = e.mousePosition;
-                _resizeOrigSize = new Vector2(WindowRect.width, WindowRect.height);
-                e.Use();
-            }
-            else if (_isResizing)
-            {
-                if (e.type == EventType.MouseDrag || e.type == EventType.MouseMove)
-                {
-                    Vector2 delta = e.mousePosition - _resizeDragStart;
-                    WindowRect.width = Mathf.Max(MinWidth, _resizeOrigSize.x + delta.x);
-                    WindowRect.height = Mathf.Max(MinHeight, _resizeOrigSize.y + delta.y);
-                    e.Use();
-                }
-                if (e.type == EventType.MouseUp || e.rawType == EventType.MouseUp)
-                {
-                    _isResizing = false;
-                    e.Use();
-                }
-            }
         }
 
         private void DrawWindowContents(int id)
@@ -495,8 +463,47 @@ namespace ErenshorCombatParser.UI
             GUI.Label(gripLocal, "\u2921"); // ⤡ diagonal arrow
             GUI.color = savedColor2;
 
-            // Make window draggable (title bar only — resize area handled separately)
-            GUI.DragWindow(new Rect(0, 0, WindowRect.width, 20));
+            // Handle resize dragging (inside window callback so coordinates are window-local)
+            HandleResize();
+
+            // Make entire window draggable by title bar and empty areas
+            GUI.DragWindow();
+        }
+
+        private void HandleResize()
+        {
+            // Resize grip area in window-local coordinates (bottom-right corner)
+            var gripRect = new Rect(
+                WindowRect.width - ResizeHandleSize,
+                WindowRect.height - ResizeHandleSize,
+                ResizeHandleSize,
+                ResizeHandleSize);
+
+            var e = Event.current;
+
+            if (e.type == EventType.MouseDown && e.button == 0 && gripRect.Contains(e.mousePosition))
+            {
+                _isResizing = true;
+                _resizeDragStart = GUIUtility.GUIToScreenPoint(e.mousePosition);
+                _resizeOrigSize = new Vector2(WindowRect.width, WindowRect.height);
+                e.Use();
+            }
+            else if (_isResizing)
+            {
+                if (e.type == EventType.MouseDrag || e.type == EventType.MouseMove)
+                {
+                    Vector2 screenPos = GUIUtility.GUIToScreenPoint(e.mousePosition);
+                    Vector2 delta = screenPos - _resizeDragStart;
+                    WindowRect.width = Mathf.Max(MinWidth, _resizeOrigSize.x + delta.x);
+                    WindowRect.height = Mathf.Max(MinHeight, _resizeOrigSize.y + delta.y);
+                    e.Use();
+                }
+                if (e.type == EventType.MouseUp || e.rawType == EventType.MouseUp)
+                {
+                    _isResizing = false;
+                    e.Use();
+                }
+            }
         }
 
         // --- Overview Tab ---

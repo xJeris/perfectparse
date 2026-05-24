@@ -17,7 +17,7 @@ namespace ErenshorCombatParser
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.2.0";
+        public const string PluginVersion = "0.2.1";
 
         // Config entries
         private ConfigEntry<KeyCode> _encounterToggleKey;
@@ -111,8 +111,16 @@ namespace ErenshorCombatParser
             Logger.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }
 
+        private bool IsInGameplay()
+        {
+            var scene = SceneManager.GetActiveScene().name;
+            return scene != "Menu" && scene != "LoadScene";
+        }
+
         private void Update()
         {
+            if (!IsInGameplay()) return;
+
             // Encounter auto-end check
             EncounterTracker.OnCombatTick();
 
@@ -135,7 +143,7 @@ namespace ErenshorCombatParser
 
         private void OnGUI()
         {
-            if (_combatWindow == null) return;
+            if (_combatWindow == null || !IsInGameplay()) return;
             _combatWindow.Draw();
 
             // Persist window position and size if changed

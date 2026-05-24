@@ -15,47 +15,18 @@ namespace ErenshorCombatParser.Patches
     {
         private static readonly ManualLogSource Log = Logger.CreateLogSource("PerfectParse.Damage");
 
-        private static bool _verified = false;
-
         public static void Apply(Harmony harmony)
         {
             var self = typeof(DamagePatches);
 
-            // Test: patch PlayerCombat.Attack or similar to verify Harmony works at all
-            try
-            {
-                var pcType = typeof(PlayerCombat);
-                var attackMethod = pcType.GetMethod("Attack",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (attackMethod != null)
-                {
-                    harmony.Patch(attackMethod,
-                        prefix: new HarmonyMethod(self.GetMethod("TestAttack_Prefix",
-                            BindingFlags.Static | BindingFlags.NonPublic)));
-                    Log.LogInfo($"TEST: Patched PlayerCombat.Attack ({attackMethod.DeclaringType.Name})");
-                }
-                else
-                {
-                    // List all methods on PlayerCombat
-                    var methods = pcType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-                    Log.LogInfo($"PlayerCombat methods ({methods.Length}):");
-                    foreach (var m in methods)
-                        Log.LogInfo($"  {m.Name}({string.Join(",", System.Array.ConvertAll(m.GetParameters(), p => p.ParameterType.Name))})");
-                }
-            }
-            catch (Exception ex) { Log.LogError("Test patch failed: " + ex); }
-
-            // DamageMe — use BOTH prefix and postfix to diagnose
+            // DamageMe
             var dmgMe = typeof(Character).GetMethod("DamageMe",
                 BindingFlags.Public | BindingFlags.Instance);
             if (dmgMe != null)
             {
                 harmony.Patch(dmgMe,
-                    prefix: new HarmonyMethod(self.GetMethod("DamageMe_Prefix",
-                        BindingFlags.Static | BindingFlags.NonPublic)),
                     postfix: new HarmonyMethod(self.GetMethod("DamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
-                Log.LogInfo("Patched Character.DamageMe (prefix + postfix)");
             }
             else Log.LogError("Could not find Character.DamageMe");
 
@@ -67,7 +38,6 @@ namespace ErenshorCombatParser.Patches
                 harmony.Patch(magicDmg,
                     postfix: new HarmonyMethod(self.GetMethod("MagicDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
-                Log.LogInfo("Patched Character.MagicDamageMe");
             }
             else Log.LogError("Could not find Character.MagicDamageMe");
 
@@ -79,7 +49,6 @@ namespace ErenshorCombatParser.Patches
                 harmony.Patch(bleedDmg,
                     postfix: new HarmonyMethod(self.GetMethod("BleedDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
-                Log.LogInfo("Patched Character.BleedDamageMe");
             }
             else Log.LogError("Could not find Character.BleedDamageMe");
 
@@ -92,7 +61,6 @@ namespace ErenshorCombatParser.Patches
                 harmony.Patch(selfDmg,
                     postfix: new HarmonyMethod(self.GetMethod("SelfDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
-                Log.LogInfo("Patched Character.SelfDamageMe");
             }
             else Log.LogError("Could not find Character.SelfDamageMe");
 
@@ -104,7 +72,6 @@ namespace ErenshorCombatParser.Patches
                 harmony.Patch(selfDmgFlat,
                     postfix: new HarmonyMethod(self.GetMethod("SelfDamageMeFlat_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
-                Log.LogInfo("Patched Character.SelfDamageMeFlat");
             }
             else Log.LogError("Could not find Character.SelfDamageMeFlat");
 
@@ -116,7 +83,6 @@ namespace ErenshorCombatParser.Patches
                 harmony.Patch(dmgShield,
                     prefix: new HarmonyMethod(self.GetMethod("DamageShieldTaken_Prefix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
-                Log.LogInfo("Patched Character.DamageShieldTaken");
             }
             else Log.LogError("Could not find Character.DamageShieldTaken");
 
@@ -128,31 +94,8 @@ namespace ErenshorCombatParser.Patches
                 harmony.Patch(envDmg,
                     postfix: new HarmonyMethod(self.GetMethod("EnvironmentalDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
-                Log.LogInfo("Patched Character.EnvironmentalDamageMe");
             }
             else Log.LogError("Could not find Character.EnvironmentalDamageMe");
-        }
-
-        // ============================================================
-        // Test handler — verify Harmony is intercepting calls
-        // ============================================================
-
-        static void TestAttack_Prefix()
-        {
-            if (!_verified)
-            {
-                Log.LogInfo("TEST: PlayerCombat.Attack was called! Harmony interception WORKS.");
-                _verified = true;
-            }
-        }
-
-        // ============================================================
-        // Prefix handlers (for diagnosis)
-        // ============================================================
-
-        static void DamageMe_Prefix(Character __instance, int _incdmg)
-        {
-            Log.LogInfo($"DamageMe PREFIX! target={__instance?.name} incdmg={_incdmg}");
         }
 
         // ============================================================
@@ -169,8 +112,6 @@ namespace ErenshorCombatParser.Patches
         {
             try
             {
-                Log.LogInfo($"DamageMe fired! result={__result} incdmg={_incdmg} attacker={_attacker?.name} target={__instance?.name}");
-
                 string eventType;
                 int finalAmount;
 
@@ -206,8 +147,6 @@ namespace ErenshorCombatParser.Patches
         {
             try
             {
-                Log.LogInfo($"MagicDamageMe fired! result={__result} dmg={_dmg} attacker={_attacker?.name} target={__instance?.name}");
-
                 string eventType;
                 int finalAmount;
 
