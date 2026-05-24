@@ -108,6 +108,7 @@ namespace ErenshorCombatParser.UI
         private GUIStyle _tabActiveStyle;
         private GUIStyle _tabInactiveStyle;
         private GUIStyle _windowStyle;
+        private Texture2D _bgTex;
         private bool _stylesInitialized;
 
         // Input blocking state
@@ -383,7 +384,10 @@ namespace ErenshorCombatParser.UI
 
         private void InitStyles()
         {
-            if (_stylesInitialized) return;
+            // Rebuild all styles if not yet initialized, or if Unity destroyed
+            // our background texture during a scene change.
+            bool needsRebuild = !_stylesInitialized || _bgTex == null;
+            if (!needsRebuild) return;
             _stylesInitialized = true;
 
             _headerStyle = new GUIStyle(GUI.skin.label)
@@ -410,12 +414,12 @@ namespace ErenshorCombatParser.UI
             };
 
             // Opaque dark background so window content is readable over game world
-            var bgTex = MakeSolidTex(new Color(0.078f, 0.082f, 0.090f, 0.95f)); // ~#14151790
+            _bgTex = MakeSolidTex(new Color(0.078f, 0.082f, 0.090f, 0.95f)); // ~#14151790
             _windowStyle = new GUIStyle(GUI.skin.window);
-            _windowStyle.normal.background = bgTex;
-            _windowStyle.onNormal.background = bgTex;
-            _windowStyle.focused.background = bgTex;
-            _windowStyle.onFocused.background = bgTex;
+            _windowStyle.normal.background = _bgTex;
+            _windowStyle.onNormal.background = _bgTex;
+            _windowStyle.focused.background = _bgTex;
+            _windowStyle.onFocused.background = _bgTex;
         }
 
         public void Draw()
@@ -436,8 +440,11 @@ namespace ErenshorCombatParser.UI
             // Block game camera rotation while mouse is over our window.
             // We track whether we set the flag so we can safely clear it when the
             // mouse leaves, without interfering with other UI elements.
-            var mousePos = Event.current.mousePosition;
-            bool mouseOverWindow = WindowRect.Contains(mousePos);
+            // Use Input.mousePosition (screen-space) converted to GUI-space for
+            // consistent results across all OnGUI passes and scene changes.
+            var screenMouse = Input.mousePosition;
+            var guiMouse = new Vector2(screenMouse.x, Screen.height - screenMouse.y);
+            bool mouseOverWindow = WindowRect.Contains(guiMouse);
             if (mouseOverWindow)
             {
                 GameData.DraggingUIElement = true;
