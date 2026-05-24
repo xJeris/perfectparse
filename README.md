@@ -2,6 +2,8 @@
 
 A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks real-time combat events and generates self-contained HTML reports with DPS calculations, damage/healing breakdowns, and encounter tracking.
 
+![SampleImg](sample.png)
+
 ## Features
 
 - Intercepts all damage and healing events via Harmony patches
