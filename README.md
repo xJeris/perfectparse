@@ -12,7 +12,13 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks
 - Entity identification: player, sim party members, pets, and NPCs
 - Automatic and manual encounter boundaries with idle timeout
 - JSONL event logging (async, non-blocking background writer)
-- **Live in-game combat window** (F11) with real-time DPS, damage, and healing stats
+- **Live in-game combat window** (F11) with:
+  - 4 tabs: Overview, Damage, Healing, Encounters
+  - Real-time DPS, damage, and healing stats updated during combat
+  - Expandable per-character breakdowns with damage type and source detail
+  - Color-coded damage types (Physical, Magic, Elemental, Void, Poison)
+  - Draggable and resizable window (position/size saved between sessions)
+  - Reset button to clear stats without restarting
 - Generates report and opens in default browser on F10
 - Self-contained HTML reports with:
   - 5 tabs: Overview, Damage, Healing, Encounters, NPCs/Enemies
