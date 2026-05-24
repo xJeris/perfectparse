@@ -110,8 +110,6 @@ ErenshorCombatParser/        Main mod (BepInEx plugin DLL)
   UI/                        In-game IMGUI combat stats window
 
 PerfectParseReport/          Standalone CLI report generator (EXE)
-
-reference/                   Implementation plan and decompiled game references
 ```
 
 ## License
