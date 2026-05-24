@@ -9,6 +9,8 @@ namespace ErenshorCombatParser.Core
 {
     public static class EncounterTracker
     {
+        public static event Action OnEncounterEnded;
+
         public static int CurrentEncounterId { get; private set; } = -1;
         public static List<Encounter> AllEncounters { get; } = new List<Encounter>();
 
@@ -82,6 +84,7 @@ namespace ErenshorCombatParser.Core
             }
             _inEncounter = false;
             CurrentEncounterId = -1;
+            OnEncounterEnded?.Invoke();
         }
 
         /// <summary>

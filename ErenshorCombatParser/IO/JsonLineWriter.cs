@@ -17,7 +17,8 @@ namespace ErenshorCombatParser.IO
         private readonly Thread _writerThread;
         private readonly ManualResetEvent _signal = new ManualResetEvent(false);
         private volatile bool _running = true;
-        private readonly string _filePath;
+        private volatile bool _disposed;
+        private string _filePath;
 
         public string FilePath => _filePath;
 
@@ -44,6 +45,8 @@ namespace ErenshorCombatParser.IO
         /// </summary>
         public void FlushSync()
         {
+            if (_disposed) return;
+            _flushDone.Reset();
             _flushRequested.Set();
             _signal.Set();
             _flushDone.WaitOne(5000);
@@ -52,12 +55,32 @@ namespace ErenshorCombatParser.IO
         private readonly ManualResetEvent _flushRequested = new ManualResetEvent(false);
         private readonly ManualResetEvent _flushDone = new ManualResetEvent(false);
 
+        /// <summary>
+        /// Rotates to a new JSONL file. Flushes all queued events to the current
+        /// file first, then closes it and opens the new file. Blocks until complete
+        /// (up to 5 seconds).
+        /// </summary>
+        public void Rotate(string newFilePath)
+        {
+            if (_disposed) return;
+            _pendingRotatePath = newFilePath;
+            _rotateDone.Reset();
+            _rotateRequested.Set();
+            _signal.Set();
+            _rotateDone.WaitOne(5000);
+        }
+
+        private volatile string _pendingRotatePath;
+        private readonly ManualResetEvent _rotateRequested = new ManualResetEvent(false);
+        private readonly ManualResetEvent _rotateDone = new ManualResetEvent(false);
+
         private void WriterLoop()
         {
             try
             {
                 var fs = new FileStream(_filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
-                using (var writer = new StreamWriter(fs, Encoding.UTF8))
+                var writer = new StreamWriter(fs, Encoding.UTF8);
+                try
                 {
                     while (_running || !_queue.IsEmpty)
                     {
@@ -79,7 +102,31 @@ namespace ErenshorCombatParser.IO
                             _flushRequested.Reset();
                             _flushDone.Set();
                         }
+
+                        if (_rotateRequested.WaitOne(0))
+                        {
+                            _rotateRequested.Reset();
+
+                            // Drain any remaining queued lines to the current file
+                            while (_queue.TryDequeue(out string remaining))
+                                writer.WriteLine(remaining);
+                            writer.Flush();
+
+                            // Close current file and open new one
+                            writer.Dispose();
+
+                            string newPath = _pendingRotatePath;
+                            _filePath = newPath;
+                            fs = new FileStream(newPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                            writer = new StreamWriter(fs, Encoding.UTF8);
+
+                            _rotateDone.Set();
+                        }
                     }
+                }
+                finally
+                {
+                    writer.Dispose();
                 }
             }
             catch (Exception ex)
@@ -94,9 +141,12 @@ namespace ErenshorCombatParser.IO
             _running = false;
             _signal.Set();
             _writerThread.Join(5000);
+            _disposed = true;
             _signal.Dispose();
             _flushRequested.Dispose();
             _flushDone.Dispose();
+            _rotateRequested.Dispose();
+            _rotateDone.Dispose();
         }
     }
 }

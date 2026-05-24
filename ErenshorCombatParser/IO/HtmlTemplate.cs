@@ -1,13 +1,47 @@
-using System.Text;
+using System.IO;
 
 namespace ErenshorCombatParser.IO
 {
     public static class HtmlTemplate
     {
-        public static string Build(string eventsJson, string entityJson, string encounterJson)
+        /// <summary>
+        /// Writes the HTML up to and including "const RAW_EVENTS = ".
+        /// After calling this, write the events JSON array directly to the stream,
+        /// then call WriteMiddle, then WriteFooter.
+        /// </summary>
+        public static void WriteHeader(StreamWriter w)
         {
-            var sb = new StringBuilder(4096);
-            sb.Append(@"<!DOCTYPE html>
+            w.Write(HEADER);
+        }
+
+        /// <summary>
+        /// Writes the bridge between the events array and the footer:
+        /// closes RAW_EVENTS, writes ENTITIES and ENCOUNTERS data.
+        /// </summary>
+        public static void WriteMiddle(StreamWriter w, string entityJson, string encounterJson)
+        {
+            w.Write(@";
+const ENTITIES = ");
+            w.Write(entityJson);
+            w.Write(@";
+const ENCOUNTERS = ");
+            w.Write(encounterJson);
+            w.Write(';');
+        }
+
+        /// <summary>
+        /// Writes all remaining JS and closing HTML tags.
+        /// </summary>
+        public static void WriteFooter(StreamWriter w)
+        {
+            w.Write(FOOTER);
+        }
+
+        // ================================================================
+        // Template constants
+        // ================================================================
+
+        private const string HEADER = @"<!DOCTYPE html>
 <html lang=""en"">
 <head>
 <meta charset=""UTF-8"">
@@ -317,15 +351,9 @@ tr:hover { background: var(--surface); }
 // ============================================================
 // Embedded data from the JSONL log
 // ============================================================
-const RAW_EVENTS = ");
-            sb.Append(eventsJson);
-            sb.Append(@";
-const ENTITIES = ");
-            sb.Append(entityJson);
-            sb.Append(@";
-const ENCOUNTERS = ");
-            sb.Append(encounterJson);
-            sb.Append(@";
+const RAW_EVENTS = ";
+
+        private const string FOOTER = @"
 
 // ============================================================
 // Utility
@@ -362,8 +390,11 @@ function entityType(id) {
 }
 function isPlayerSide(id) {
   if (!id) return false;
-  const t = entityType(id);
-  return t === 'Player' || t === 'SimPlayer' || t === 'Pet';
+  // Check entity type from registry first
+  const e = ENTITIES[id];
+  if (e) return e.type === 'Player' || e.type === 'SimPlayer' || e.type === 'Pet';
+  // Fallback: infer from ID prefix (entity may have been cleared from registry on scene change)
+  return id === 'Player' || id.startsWith('Sim:') || id.startsWith('Pet:');
 }
 
 // ============================================================
@@ -1089,8 +1120,6 @@ document.getElementById('encReplayClose').addEventListener('click', closeEncRepl
 renderAll(RAW_EVENTS);
 </script>
 </body>
-</html>");
-            return sb.ToString();
-        }
+</html>";
     }
 }

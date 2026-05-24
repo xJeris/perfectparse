@@ -17,7 +17,7 @@ namespace ErenshorCombatParser
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.2.3";
+        public const string PluginVersion = "0.2.4";
 
         // Config entries
         private ConfigEntry<KeyCode> _encounterToggleKey;
@@ -33,6 +33,7 @@ namespace ErenshorCombatParser
         private ConfigEntry<float> _windowY;
         private ConfigEntry<float> _windowWidth;
         private ConfigEntry<float> _windowHeight;
+        private ConfigEntry<int> _maxLogSizeMB;
 
         private Harmony _harmony;
         private JsonLineWriter _writer;
@@ -68,6 +69,8 @@ namespace ErenshorCombatParser
                 "Window width in pixels.");
             _windowHeight = Config.Bind("Window", "Height", 420f,
                 "Window height in pixels.");
+            _maxLogSizeMB = Config.Bind("General", "MaxLogSizeMB", 25,
+                "Maximum JSONL log file size in MB before rotating to a new file. Rotation happens after the current encounter ends.");
 
             // Set up output directory
             _logDir = string.IsNullOrEmpty(_outputDirectory.Value)
@@ -96,6 +99,9 @@ namespace ErenshorCombatParser
             CombatEventBus.OnCombatEvent += _combatWindow.OnCombatEvent;
             CombatEventBus.OnHealEvent += _combatWindow.OnHealEvent;
             CombatEventBus.OnEntityEvent += _combatWindow.OnEntityEvent;
+
+            // Subscribe to encounter end for JSONL file rotation
+            EncounterTracker.OnEncounterEnded += OnEncounterEnded;
 
             // Hook scene changes to clear entity cache
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -191,6 +197,30 @@ namespace ErenshorCombatParser
             _writer.Enqueue(snapshot.ToJsonLine());
         }
 
+        private void OnEncounterEnded()
+        {
+            if (_writer == null || _maxLogSizeMB.Value <= 0) return;
+
+            try
+            {
+                _writer.FlushSync();
+                var fileInfo = new FileInfo(_writer.FilePath);
+                if (!fileInfo.Exists) return;
+
+                long capBytes = (long)_maxLogSizeMB.Value * 1024 * 1024;
+                if (fileInfo.Length >= capBytes)
+                {
+                    string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string newPath = Path.Combine(_logDir, "combat_" + timestamp + ".jsonl");
+                    _writer.Rotate(newPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning("Failed to rotate log file: " + ex.Message);
+            }
+        }
+
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             EntityRegistry.ClearCache();
@@ -242,19 +272,20 @@ namespace ErenshorCombatParser
                 CombatEventBus.OnHealEvent -= _combatWindow.OnHealEvent;
                 CombatEventBus.OnEntityEvent -= _combatWindow.OnEntityEvent;
             }
+            EncounterTracker.OnEncounterEnded -= OnEncounterEnded;
             SceneManager.sceneLoaded -= OnSceneLoaded;
 
             _harmony?.UnpatchSelf();
 
-            // Dispose writer first so the JSONL file is closed and fully flushed
-            _writer?.Dispose();
-
-            // Then generate report from the closed file
+            // Generate report while the writer is still alive (FlushSync needs it)
             try
             {
                 GenerateReport();
             }
             catch (Exception) { }
+
+            // Now dispose the writer (flushes remaining queue and closes file)
+            _writer?.Dispose();
         }
 
         private static bool IsNpcId(string id)

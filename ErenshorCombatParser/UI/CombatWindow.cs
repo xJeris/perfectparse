@@ -107,6 +107,7 @@ namespace ErenshorCombatParser.UI
         private GUIStyle _rowStyle;
         private GUIStyle _tabActiveStyle;
         private GUIStyle _tabInactiveStyle;
+        private GUIStyle _windowStyle;
         private bool _stylesInitialized;
 
         // Input blocking state
@@ -372,6 +373,14 @@ namespace ErenshorCombatParser.UI
 
         // --- IMGUI Rendering ---
 
+        private static Texture2D MakeSolidTex(Color color)
+        {
+            var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            tex.SetPixel(0, 0, color);
+            tex.Apply();
+            return tex;
+        }
+
         private void InitStyles()
         {
             if (_stylesInitialized) return;
@@ -399,6 +408,14 @@ namespace ErenshorCombatParser.UI
             {
                 fontSize = 11
             };
+
+            // Opaque dark background so window content is readable over game world
+            var bgTex = MakeSolidTex(new Color(0.078f, 0.082f, 0.090f, 0.95f)); // ~#14151790
+            _windowStyle = new GUIStyle(GUI.skin.window);
+            _windowStyle.normal.background = bgTex;
+            _windowStyle.onNormal.background = bgTex;
+            _windowStyle.focused.background = bgTex;
+            _windowStyle.onFocused.background = bgTex;
         }
 
         public void Draw()
@@ -435,7 +452,8 @@ namespace ErenshorCombatParser.UI
             var savedSkin = GUI.skin;
             var savedColor = GUI.color;
 
-            WindowRect = GUI.Window(_windowId, WindowRect, DrawWindowContents, "PerfectParse \u2014 Live");
+            var style = mouseOverWindow ? _windowStyle : GUI.skin.window;
+            WindowRect = GUI.Window(_windowId, WindowRect, DrawWindowContents, "PerfectParse \u2014 Live", style);
 
             // Clamp to screen
             WindowRect.x = Mathf.Clamp(WindowRect.x, 0, Screen.width - 100);

@@ -41,6 +41,11 @@ namespace ErenshorCombatParser.Core
         private static readonly Dictionary<int, EntitySnapshot> _cache
             = new Dictionary<int, EntitySnapshot>();
 
+        // Keyed by entity ID string — never cleared. Used for report generation
+        // so entities from previous zones are still available.
+        private static readonly Dictionary<string, EntitySnapshot> _reportEntities
+            = new Dictionary<string, EntitySnapshot>();
+
         // Class name remapping: code name -> display name
         // Only applied to Player and SimPlayer entities
         private static readonly Dictionary<string, string> _classRemap
@@ -59,6 +64,7 @@ namespace ErenshorCombatParser.Core
 
             var snapshot = BuildSnapshot(character);
             _cache[key] = snapshot;
+            _reportEntities[snapshot.Id] = snapshot;
             CombatEventBus.EmitEntity(snapshot);
             return snapshot;
         }
@@ -149,14 +155,15 @@ namespace ErenshorCombatParser.Core
         }
 
         /// <summary>
-        /// Serializes all known entities to a JSON array string for the HTML report.
+        /// Serializes all known entities to a JSON object string for the HTML report.
+        /// Uses _reportEntities which persists across scene changes.
         /// </summary>
         public static string ToJson()
         {
             var sb = new System.Text.StringBuilder(512);
             sb.Append('{');
             bool first = true;
-            foreach (var kvp in _cache)
+            foreach (var kvp in _reportEntities)
             {
                 var e = kvp.Value;
                 if (!first) sb.Append(',');

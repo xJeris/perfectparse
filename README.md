@@ -11,15 +11,17 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks
 - Healing tracking with spell attribution, HoT ticks, and overhealing
 - Entity identification: player, sim party members, pets, and NPCs
 - Automatic and manual encounter boundaries with idle timeout
-- JSONL event logging (async, non-blocking background writer)
+- JSONL event logging (async, non-blocking background writer) with automatic file rotation at configurable size cap
 - **Live in-game combat window** (F11) with:
   - 4 tabs: Overview, Damage, Healing, Encounters
   - Real-time DPS, damage, and healing stats updated during combat
   - Expandable per-character breakdowns with damage type and source detail
   - Color-coded damage types (Physical, Magic, Elemental, Void, Poison)
   - Draggable and resizable window (position/size saved between sessions)
+  - Background darkens on mouse hover for readability
   - Reset button to clear stats without restarting
 - Generates report and opens in default browser on F10
+- Streaming HTML report generation (memory-efficient for long sessions)
 - Self-contained HTML reports with:
   - 5 tabs: Overview, Damage, Healing, Encounters, NPCs/Enemies
   - Expandable per-character breakdowns with damage type/source detail
@@ -88,6 +90,7 @@ Generated at `BepInEx/config/com.erenshor.perfectparse.cfg` after first run:
 | General | EnableLogging | true | Master logging toggle |
 | General | OutputDirectory | *(blank)* | Custom output path |
 | General | OpenInOverlay | true | Open report in browser on generation |
+| General | MaxLogSizeMB | 25 | Max JSONL file size (MB) before rotating to new file |
 | Window | X | 20 | Window X position (pixels) |
 | Window | Y | 20 | Window Y position (pixels) |
 | Window | Width | 560 | Window width (pixels) |
