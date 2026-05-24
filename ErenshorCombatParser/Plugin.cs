@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 using ErenshorCombatParser.Core;
 using ErenshorCombatParser.IO;
 using ErenshorCombatParser.Models;
+using ErenshorCombatParser.UI;
 
 namespace ErenshorCombatParser
 {
@@ -16,7 +17,7 @@ namespace ErenshorCombatParser
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.2.0";
 
         // Config entries
         private ConfigEntry<KeyCode> _encounterToggleKey;
@@ -26,10 +27,17 @@ namespace ErenshorCombatParser
         private ConfigEntry<string> _outputDirectory;
         private ConfigEntry<bool> _logEnvironmental;
         private ConfigEntry<bool> _logNpcVsNpc;
+        private ConfigEntry<bool> _openInOverlay;
+        private ConfigEntry<KeyCode> _toggleWindowKey;
+        private ConfigEntry<float> _windowX;
+        private ConfigEntry<float> _windowY;
+        private ConfigEntry<float> _windowWidth;
+        private ConfigEntry<float> _windowHeight;
 
         private Harmony _harmony;
         private JsonLineWriter _writer;
         private string _logDir;
+        private CombatWindow _combatWindow;
 
         private void Awake()
         {
@@ -48,6 +56,18 @@ namespace ErenshorCombatParser
                 "Log environmental damage (lava, fall damage, etc.).");
             _logNpcVsNpc = Config.Bind("Filters", "LogNPCvsNPC", false,
                 "Log NPC-on-NPC combat (not involving player or sims).");
+            _openInOverlay = Config.Bind("General", "OpenInOverlay", true,
+                "Open the HTML report in the default browser after generation.");
+            _toggleWindowKey = Config.Bind("Hotkeys", "ToggleWindow", KeyCode.F11,
+                "Key to toggle the in-game combat stats window.");
+            _windowX = Config.Bind("Window", "X", 20f,
+                "Window X position in pixels.");
+            _windowY = Config.Bind("Window", "Y", 20f,
+                "Window Y position in pixels.");
+            _windowWidth = Config.Bind("Window", "Width", 560f,
+                "Window width in pixels.");
+            _windowHeight = Config.Bind("Window", "Height", 420f,
+                "Window height in pixels.");
 
             // Set up output directory
             _logDir = string.IsNullOrEmpty(_outputDirectory.Value)
@@ -68,45 +88,27 @@ namespace ErenshorCombatParser
             CombatEventBus.OnHealEvent += OnHealEvent;
             CombatEventBus.OnEntityEvent += OnEntityEvent;
 
+            // Set up in-game combat window
+            _combatWindow = new CombatWindow();
+            _combatWindow.WindowRect = new Rect(
+                _windowX.Value, _windowY.Value,
+                _windowWidth.Value, _windowHeight.Value);
+            CombatEventBus.OnCombatEvent += _combatWindow.OnCombatEvent;
+            CombatEventBus.OnHealEvent += _combatWindow.OnHealEvent;
+            CombatEventBus.OnEntityEvent += _combatWindow.OnEntityEvent;
+
             // Hook scene changes to clear entity cache
             SceneManager.sceneLoaded += OnSceneLoaded;
 
             // Apply Harmony patches
             _harmony = new Harmony(PluginGUID);
 
-            // Diagnostic: log Character type info
-            var charType = typeof(Character);
-            Logger.LogInfo($"Character type: {charType.FullName} from {charType.Assembly.GetName().Name}");
-            var dmgMethod = charType.GetMethod("DamageMe",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-            if (dmgMethod != null)
-            {
-                Logger.LogInfo($"DamageMe: {dmgMethod}, DeclaringType={dmgMethod.DeclaringType.FullName}");
-                var parms = dmgMethod.GetParameters();
-                Logger.LogInfo($"DamageMe params ({parms.Length}): {string.Join(", ", System.Array.ConvertAll(parms, p => p.ParameterType.Name + " " + p.Name))}");
-            }
-            else
-            {
-                Logger.LogInfo("DamageMe method NOT FOUND via reflection!");
-                // List all public methods on Character
-                var methods = charType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
-                foreach (var m in methods)
-                    Logger.LogInfo($"  Character method: {m.Name}");
-            }
-
-            // Manual patches for reliability
+            // Apply patches
             Patches.DamagePatches.Apply(_harmony);
             Patches.HealPatches.Apply(_harmony);
-
-            // Attribute-based patches for everything else (ContextPatches, FinalePatches, etc.)
             _harmony.PatchAll();
 
-            // Log all patched methods
-            var patchedMethods = _harmony.GetPatchedMethods();
-            foreach (var pm in patchedMethods)
-                Logger.LogInfo($"Harmony patched: {pm.DeclaringType?.Name}.{pm.Name}");
-
-            Logger.LogInfo($"{PluginName} v{PluginVersion} loaded. Logging to: {logFile}");
+            Logger.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }
 
         private void Update()
@@ -118,14 +120,38 @@ namespace ErenshorCombatParser
             if (Input.GetKeyDown(_encounterToggleKey.Value))
             {
                 EncounterTracker.ToggleManual();
-                Logger.LogInfo(EncounterTracker.CurrentEncounterId > 0
-                    ? "Encounter started (manual)."
-                    : "Encounter ended (manual).");
             }
 
             if (Input.GetKeyDown(_generateReportKey.Value))
             {
                 GenerateReport();
+            }
+
+            if (Input.GetKeyDown(_toggleWindowKey.Value))
+            {
+                _combatWindow.Visible = !_combatWindow.Visible;
+            }
+        }
+
+        private void OnGUI()
+        {
+            if (_combatWindow == null) return;
+            _combatWindow.Draw();
+
+            // Persist window position and size if changed
+            if (_combatWindow.Visible)
+            {
+                var r = _combatWindow.WindowRect;
+                if (Math.Abs(r.x - _windowX.Value) > 1 || Math.Abs(r.y - _windowY.Value) > 1)
+                {
+                    _windowX.Value = r.x;
+                    _windowY.Value = r.y;
+                }
+                if (Math.Abs(r.width - _windowWidth.Value) > 1 || Math.Abs(r.height - _windowHeight.Value) > 1)
+                {
+                    _windowWidth.Value = r.width;
+                    _windowHeight.Value = r.height;
+                }
             }
         }
 
@@ -159,7 +185,6 @@ namespace ErenshorCombatParser
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             EntityRegistry.ClearCache();
-            Logger.LogInfo("Scene loaded: " + scene.name + " — entity cache cleared.");
         }
 
         private void GenerateReport()
@@ -178,7 +203,18 @@ namespace ErenshorCombatParser
                 HtmlReportGenerator.Generate(
                     _writer.FilePath, reportPath, entityJson, encounterJson);
 
-                Logger.LogInfo("Report generated: " + reportPath);
+
+                if (_openInOverlay.Value)
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(reportPath);
+                    }
+                    catch (Exception openEx)
+                    {
+                        Logger.LogWarning("Could not open report: " + openEx.Message);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -191,6 +227,12 @@ namespace ErenshorCombatParser
             CombatEventBus.OnCombatEvent -= OnCombatEvent;
             CombatEventBus.OnHealEvent -= OnHealEvent;
             CombatEventBus.OnEntityEvent -= OnEntityEvent;
+            if (_combatWindow != null)
+            {
+                CombatEventBus.OnCombatEvent -= _combatWindow.OnCombatEvent;
+                CombatEventBus.OnHealEvent -= _combatWindow.OnHealEvent;
+                CombatEventBus.OnEntityEvent -= _combatWindow.OnEntityEvent;
+            }
             SceneManager.sceneLoaded -= OnSceneLoaded;
 
             _harmony?.UnpatchSelf();

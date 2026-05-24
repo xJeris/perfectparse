@@ -372,10 +372,15 @@ function aggregate(events) {
         if (ev.enc > 0 && !isSelfDmg) {
           encDmg[ev.enc] = (encDmg[ev.enc] || 0) + amt;
           if (!encByEntity[ev.enc]) encByEntity[ev.enc] = {};
-          if (!encByEntity[ev.enc][src]) encByEntity[ev.enc][src] = { dmg:0, hits:0, crits:0 };
+          if (!encByEntity[ev.enc][src]) encByEntity[ev.enc][src] = { dmg:0, hits:0, crits:0, byType:{}, sourceDetail:{} };
           encByEntity[ev.enc][src].dmg += amt;
           encByEntity[ev.enc][src].hits++;
           if (ev.crit) encByEntity[ev.enc][src].crits++;
+          encByEntity[ev.enc][src].byType[dt] = (encByEntity[ev.enc][src].byType[dt] || 0) + amt;
+          if (!encByEntity[ev.enc][src].sourceDetail[s]) encByEntity[ev.enc][src].sourceDetail[s] = { total:0, hits:0, crits:0, dmgType:dt };
+          encByEntity[ev.enc][src].sourceDetail[s].total += amt;
+          encByEntity[ev.enc][src].sourceDetail[s].hits++;
+          if (ev.crit) encByEntity[ev.enc][src].sourceDetail[s].crits++;
         }
       } else if (ev.type === 'Miss') {
         dmgDealt[src].misses++;
@@ -575,6 +580,36 @@ function renderHealing(agg) {
   document.getElementById('healBody').innerHTML = html;
 }
 
+function encCharBreakdown(cgid, ed) {
+  let h = '';
+  const types = Object.entries(ed.byType || {}).sort((a,b) => b[1] - a[1]);
+  for (const [dtName, dtTotal] of types) {
+    const pct = ed.dmg > 0 ? (dtTotal / ed.dmg * 100).toFixed(1) : '0.0';
+    h += '<tr class=""detail-row"" data-group=""' + cgid + '"">';
+    h += '<td></td>';
+    h += '<td class=""' + dmgClass(dtName) + '"" style=""padding-left:32px;font-weight:bold"">' + dtName + '</td>';
+    h += '<td></td>';
+    h += '<td class=""num"">' + fmt(dtTotal) + ' (' + pct + '%)</td>';
+    h += '<td></td><td></td>';
+    h += '</tr>';
+    const sourcesOfType = Object.entries(ed.sourceDetail || {})
+      .filter(([,sd]) => sd.dmgType === dtName)
+      .sort((a,b) => b[1].total - a[1].total);
+    for (const [sName, sd] of sourcesOfType) {
+      const sPct = dtTotal > 0 ? (sd.total / dtTotal * 100).toFixed(1) : '0.0';
+      h += '<tr class=""detail-row"" data-group=""' + cgid + '"">';
+      h += '<td></td>';
+      h += '<td style=""padding-left:56px"">' + sName + '</td>';
+      h += '<td></td>';
+      h += '<td class=""num"">' + fmt(sd.total) + ' (' + sPct + '%)</td>';
+      h += '<td></td>';
+      h += '<td>' + fmt(sd.hits) + ' hits / ' + fmt(sd.crits) + ' crits</td>';
+      h += '</tr>';
+    }
+  }
+  return h;
+}
+
 function renderEncounters(agg) {
   let html = '';
   for (let ri = 0; ri < ENCOUNTERS.length; ri++) {
@@ -596,11 +631,13 @@ function renderEncounters(agg) {
     const allChars = Object.entries(entities).sort((a,b) => b[1].dmg - a[1].dmg);
     const playerSide = allChars.filter(([eid]) => isPlayerSide(eid));
     const npcSide = allChars.filter(([eid]) => !isPlayerSide(eid));
+    let ci = 0;
     // Player/Sim/Pet section
     for (const [eid, ed] of playerSide) {
       const charDps = dur > 0 ? ed.dmg / (dur / 1000) : 0;
       const pct = dmg > 0 ? (ed.dmg / dmg * 100).toFixed(1) : '0.0';
-      html += '<tr class=""detail-row"" data-group=""' + gid + '"">';
+      const cgid = gid + '-c' + ci++;
+      html += '<tr class=""detail-row expandable"" data-group=""' + gid + '"" data-subgroup=""' + cgid + '"">';
       html += '<td></td>';
       html += '<td>' + entityName(eid) + '</td>';
       html += '<td></td>';
@@ -608,6 +645,7 @@ function renderEncounters(agg) {
       html += '<td class=""num"">' + fmtDps(charDps) + '</td>';
       html += '<td>' + fmt(ed.hits) + ' hits / ' + fmt(ed.crits) + ' crits</td>';
       html += '</tr>';
+      html += encCharBreakdown(cgid, ed);
     }
     // Separator + NPC section
     if (npcSide.length > 0) {
@@ -617,7 +655,8 @@ function renderEncounters(agg) {
       for (const [eid, ed] of npcSide) {
         const charDps = dur > 0 ? ed.dmg / (dur / 1000) : 0;
         const pct = dmg > 0 ? (ed.dmg / dmg * 100).toFixed(1) : '0.0';
-        html += '<tr class=""detail-row"" data-group=""' + gid + '"">';
+        const cgid = gid + '-c' + ci++;
+        html += '<tr class=""detail-row expandable"" data-group=""' + gid + '"" data-subgroup=""' + cgid + '"">';
         html += '<td></td>';
         html += '<td style=""color:var(--text-dim)"">' + entityName(eid) + '</td>';
         html += '<td></td>';
@@ -625,6 +664,7 @@ function renderEncounters(agg) {
         html += '<td class=""num"">' + fmtDps(charDps) + '</td>';
         html += '<td>' + fmt(ed.hits) + ' hits / ' + fmt(ed.crits) + ' crits</td>';
         html += '</tr>';
+        html += encCharBreakdown(cgid, ed);
       }
     }
   }
@@ -804,11 +844,23 @@ document.querySelectorAll('th').forEach(th => {
 document.addEventListener('click', (e) => {
   const row = e.target.closest('tr.expandable');
   if (!row) return;
-  const gid = row.dataset.group;
+  const isNested = !!row.dataset.subgroup;
+  const gid = isNested ? row.dataset.subgroup : row.dataset.group;
   if (!gid) return;
-  row.classList.toggle('open');
+  // For nested rows (detail-row + expandable), only toggle children, not self
+  if (!isNested) row.classList.toggle('open');
+  const opening = isNested ? !row.classList.contains('sub-open') : row.classList.contains('open');
+  if (isNested) row.classList.toggle('sub-open');
   const details = document.querySelectorAll('tr.detail-row[data-group=""' + gid + '""]');
-  details.forEach(d => d.classList.toggle('open'));
+  details.forEach(d => {
+    if (opening) { d.classList.add('open'); } else { d.classList.remove('open'); }
+    // Collapse nested sub-rows when hiding a parent
+    if (!opening && d.dataset.subgroup) {
+      d.classList.remove('sub-open');
+      document.querySelectorAll('tr.detail-row[data-group=""' + d.dataset.subgroup + '""]')
+        .forEach(sd => sd.classList.remove('open'));
+    }
+  });
 });
 
 // ============================================================

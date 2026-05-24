@@ -2,8 +2,6 @@
 
 A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks real-time combat events and generates self-contained HTML reports with DPS calculations, damage/healing breakdowns, and encounter tracking.
 
-![SampleImg](sample.png)
-
 ## Features
 
 - Intercepts all damage and healing events via Harmony patches
@@ -12,9 +10,11 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks
 - Entity identification: player, sim party members, pets, and NPCs
 - Automatic and manual encounter boundaries with idle timeout
 - JSONL event logging (async, non-blocking background writer)
+- **Live in-game combat window** (F11) with real-time DPS, damage, and healing stats
+- Generates report and opens in default browser on F10
 - Self-contained HTML reports with:
   - 5 tabs: Overview, Damage, Healing, Encounters, NPCs/Enemies
-  - Expandable per-character breakdowns
+  - Expandable per-character breakdowns with damage type/source detail
   - DPS by session and encounter time
   - Damage type color coding
   - Replay mode with adjustable playback speed
@@ -60,7 +60,8 @@ Without this, Harmony patches cannot intercept Erenshor's methods and the mod wi
 | Hotkey | Action |
 |--------|--------|
 | F9 | Toggle manual encounter start/stop |
-| F10 | Generate HTML report from current session |
+| F10 | Generate HTML report and open in browser |
+| F11 | Toggle live in-game combat stats window |
 
 Logs and reports are saved to `BepInEx/plugins/PerfectParse/logs/`.
 
@@ -74,9 +75,15 @@ Generated at `BepInEx/config/com.erenshor.perfectparse.cfg` after first run:
 |---------|-----|---------|-------------|
 | Hotkeys | EncounterToggle | F9 | Manual encounter key |
 | Hotkeys | GenerateReport | F10 | Report generation key |
+| Hotkeys | ToggleWindow | F11 | In-game stats window key |
 | Encounters | IdleTimeout | 5.0 | Seconds before auto-ending encounter |
 | General | EnableLogging | true | Master logging toggle |
 | General | OutputDirectory | *(blank)* | Custom output path |
+| General | OpenInOverlay | true | Open report in browser on generation |
+| Window | X | 20 | Window X position (pixels) |
+| Window | Y | 20 | Window Y position (pixels) |
+| Window | Width | 560 | Window width (pixels) |
+| Window | Height | 420 | Window height (pixels) |
 | Filters | LogEnvironmental | false | Log environmental damage |
 | Filters | LogNPCvsNPC | false | Log NPC-on-NPC combat |
 
@@ -89,9 +96,11 @@ ErenshorCombatParser/        Main mod (BepInEx plugin DLL)
   Patches/                   Harmony patches for damage, healing, context, finale
   Models/                    CombatEvent, HealEvent, Encounter
   IO/                        JSONL writer, HTML report generator, HTML template
+  UI/                        In-game IMGUI combat stats window
 
 PerfectParseReport/          Standalone CLI report generator (EXE)
 
+reference/                   Implementation plan and decompiled game references
 ```
 
 ## License
