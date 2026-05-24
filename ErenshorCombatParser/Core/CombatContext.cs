@@ -24,11 +24,5 @@ namespace ErenshorCombatParser.Core
                 return _source;
             return null;
         }
-
-        public static void Clear()
-        {
-            _source = null;
-            _frame = -1;
-        }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using ErenshorCombatParser.IO;
+using Microsoft.Win32;
 
 namespace PerfectParseReport
 {
@@ -74,9 +75,9 @@ namespace PerfectParseReport
         /// </summary>
         private static string FindLatestJsonl()
         {
-            // Check paths relative to the exe location and common Steam paths
+            // Check paths relative to the exe location and discovered Steam library folders
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] searchDirs = new[]
+            var searchDirs = new System.Collections.Generic.List<string>
             {
                 // If exe is in the plugins folder alongside the mod
                 Path.Combine(exeDir, "logs"),
@@ -84,9 +85,16 @@ namespace PerfectParseReport
                 // Common BepInEx plugin paths
                 Path.Combine(exeDir, "..", "PerfectParse", "logs"),
                 Path.Combine(exeDir, "..", "..", "BepInEx", "plugins", "PerfectParse", "logs"),
-                // Steam default path
-                @"C:\Program Files (x86)\Steam\steamapps\common\Erenshor Playtest\BepInEx\plugins\PerfectParse\logs",
             };
+
+            // Discover Steam library folders and add game log paths
+            foreach (string lib in FindSteamLibraryFolders())
+            {
+                searchDirs.Add(Path.Combine(lib, "steamapps", "common",
+                    "Erenshor Playtest", "BepInEx", "plugins", "PerfectParse", "logs"));
+                searchDirs.Add(Path.Combine(lib, "steamapps", "common",
+                    "Erenshor", "BepInEx", "plugins", "PerfectParse", "logs"));
+            }
 
             foreach (string dir in searchDirs)
             {
@@ -101,6 +109,66 @@ namespace PerfectParseReport
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Discovers all Steam library folders by reading the Steam install path from
+        /// the Windows registry and parsing libraryfolders.vdf.
+        /// </summary>
+        private static string[] FindSteamLibraryFolders()
+        {
+            try
+            {
+                // Find Steam install directory from registry
+                string steamPath = Registry.GetValue(
+                    @"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam",
+                    "InstallPath", null) as string;
+                if (steamPath == null)
+                {
+                    steamPath = Registry.GetValue(
+                        @"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam",
+                        "InstallPath", null) as string;
+                }
+                if (steamPath == null) return Array.Empty<string>();
+
+                var folders = new System.Collections.Generic.List<string> { steamPath };
+
+                // Parse libraryfolders.vdf for additional library paths
+                string vdfPath = Path.Combine(steamPath, "steamapps", "libraryfolders.vdf");
+                if (File.Exists(vdfPath))
+                {
+                    foreach (string line in File.ReadAllLines(vdfPath))
+                    {
+                        string trimmed = line.Trim();
+                        if (trimmed.StartsWith("\"path\""))
+                        {
+                            // Format: "path"		"C:\SteamLibrary"
+                            int first = trimmed.IndexOf('"', 5);
+                            if (first >= 0)
+                            {
+                                int start = trimmed.IndexOf('"', first + 1);
+                                if (start >= 0)
+                                {
+                                    int end = trimmed.IndexOf('"', start + 1);
+                                    if (end > start)
+                                    {
+                                        string path = trimmed.Substring(start + 1, end - start - 1)
+                                            .Replace("\\\\", "\\");
+                                        if (Directory.Exists(path) && !folders.Contains(path))
+                                            folders.Add(path);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return folders.ToArray();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
         }
 
         /// <summary>

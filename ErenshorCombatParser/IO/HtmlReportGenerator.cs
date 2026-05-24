@@ -58,23 +58,23 @@ namespace ErenshorCombatParser.IO
                         if (!firstEntity) entitySb.Append(',');
                         firstEntity = false;
 
-                        entitySb.Append('"').Append(EscapeJson(id)).Append("\":{");
+                        entitySb.Append('"').Append(JsonUtil.EscapeJson(id)).Append("\":{");
                         string name = ExtractJsonString(line, "name");
-                        entitySb.Append("\"name\":\"").Append(EscapeJson(name ?? id)).Append('"');
+                        entitySb.Append("\"name\":\"").Append(JsonUtil.EscapeJson(name ?? id)).Append('"');
 
                         string cls = ExtractJsonString(line, "class");
                         if (cls != null)
-                            entitySb.Append(",\"class\":\"").Append(EscapeJson(cls)).Append('"');
+                            entitySb.Append(",\"class\":\"").Append(JsonUtil.EscapeJson(cls)).Append('"');
 
                         string level = ExtractJsonValue(line, "level");
                         entitySb.Append(",\"level\":").Append(level ?? "0");
 
                         string type = ExtractJsonString(line, "type");
-                        entitySb.Append(",\"type\":\"").Append(EscapeJson(type ?? "NPC")).Append('"');
+                        entitySb.Append(",\"type\":\"").Append(JsonUtil.EscapeJson(type ?? "NPC")).Append('"');
 
                         string master = ExtractJsonString(line, "master");
                         if (master != null)
-                            entitySb.Append(",\"master\":\"").Append(EscapeJson(master)).Append('"');
+                            entitySb.Append(",\"master\":\"").Append(JsonUtil.EscapeJson(master)).Append('"');
 
                         entitySb.Append('}');
                     }
@@ -189,10 +189,5 @@ namespace ErenshorCombatParser.IO
             return json.Substring(start, end - start).Trim();
         }
 
-        private static string EscapeJson(string s)
-        {
-            if (s == null) return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        }
     }
 }

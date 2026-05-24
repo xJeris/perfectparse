@@ -15,10 +15,8 @@ namespace ErenshorCombatParser.Core
 
         public static void EmitDamage(CombatEvent evt)
         {
-            evt.EncounterId = EncounterTracker.CurrentEncounterId;
-
-            // Notify encounter tracker of combat activity (for auto-detection)
-            // Only trigger on player-side events
+            // Notify encounter tracker first so auto-detection starts the encounter
+            // before we assign the ID — ensures the first event gets the correct ID
             if (evt.SourceId != null &&
                 (evt.SourceId == "Player" ||
                  evt.SourceId.StartsWith("Sim:") ||
@@ -29,6 +27,7 @@ namespace ErenshorCombatParser.Core
                 EncounterTracker.NotifyCombatActivity();
             }
 
+            evt.EncounterId = EncounterTracker.CurrentEncounterId;
             OnCombatEvent?.Invoke(evt);
         }
 

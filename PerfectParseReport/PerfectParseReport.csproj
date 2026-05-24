@@ -12,6 +12,7 @@
   <ItemGroup>
     <Compile Include="..\ErenshorCombatParser\IO\HtmlReportGenerator.cs" Link="IO\HtmlReportGenerator.cs" />
     <Compile Include="..\ErenshorCombatParser\IO\HtmlTemplate.cs" Link="IO\HtmlTemplate.cs" />
+    <Compile Include="..\ErenshorCombatParser\IO\JsonUtil.cs" Link="IO\JsonUtil.cs" />
   </ItemGroup>
 
 </Project>

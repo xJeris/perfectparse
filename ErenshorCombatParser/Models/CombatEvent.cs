@@ -1,4 +1,5 @@
 using System.Text;
+using ErenshorCombatParser.IO;
 
 namespace ErenshorCombatParser.Models
 {
@@ -21,22 +22,17 @@ namespace ErenshorCombatParser.Models
             sb.Append("{\"ev\":\"combat\"");
             sb.Append(",\"t\":").Append(Timestamp);
             sb.Append(",\"type\":\"").Append(Type).Append('"');
-            sb.Append(",\"src\":\"").Append(EscapeJson(SourceId)).Append('"');
-            sb.Append(",\"tgt\":\"").Append(EscapeJson(TargetId)).Append('"');
+            sb.Append(",\"src\":\"").Append(JsonUtil.EscapeJson(SourceId)).Append('"');
+            sb.Append(",\"tgt\":\"").Append(JsonUtil.EscapeJson(TargetId)).Append('"');
             sb.Append(",\"dmgType\":\"").Append(DamageType).Append('"');
             sb.Append(",\"raw\":").Append(RawAmount);
             sb.Append(",\"final\":").Append(FinalAmount);
             if (Critical) sb.Append(",\"crit\":true");
-            sb.Append(",\"source\":\"").Append(EscapeJson(Source)).Append('"');
+            sb.Append(",\"source\":\"").Append(JsonUtil.EscapeJson(Source)).Append('"');
             if (EncounterId > 0) sb.Append(",\"enc\":").Append(EncounterId);
             sb.Append('}');
             return sb.ToString();
         }
 
-        private static string EscapeJson(string s)
-        {
-            if (s == null) return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        }
     }
 }

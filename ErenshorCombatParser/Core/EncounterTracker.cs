@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ErenshorCombatParser.IO;
 using ErenshorCombatParser.Models;
 using UnityEngine;
 
@@ -100,7 +101,7 @@ namespace ErenshorCombatParser.Core
                 sb.Append(",\"start\":").Append(e.StartMs);
                 sb.Append(",\"end\":").Append(endMs);
                 if (e.Manual) sb.Append(",\"manual\":true");
-                sb.Append(",\"label\":\"").Append(e.Label).Append('"');
+                sb.Append(",\"label\":\"").Append(JsonUtil.EscapeJson(e.Label)).Append('"');
                 sb.Append('}');
             }
             sb.Append(']');

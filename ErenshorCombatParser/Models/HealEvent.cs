@@ -1,4 +1,5 @@
 using System.Text;
+using ErenshorCombatParser.IO;
 
 namespace ErenshorCombatParser.Models
 {
@@ -22,10 +23,10 @@ namespace ErenshorCombatParser.Models
             sb.Append(",\"t\":").Append(Timestamp);
             sb.Append(",\"type\":\"").Append(Type).Append('"');
             if (SourceId != null)
-                sb.Append(",\"src\":\"").Append(EscapeJson(SourceId)).Append('"');
-            sb.Append(",\"tgt\":\"").Append(EscapeJson(TargetId)).Append('"');
+                sb.Append(",\"src\":\"").Append(JsonUtil.EscapeJson(SourceId)).Append('"');
+            sb.Append(",\"tgt\":\"").Append(JsonUtil.EscapeJson(TargetId)).Append('"');
             if (SpellName != null)
-                sb.Append(",\"spell\":\"").Append(EscapeJson(SpellName)).Append('"');
+                sb.Append(",\"spell\":\"").Append(JsonUtil.EscapeJson(SpellName)).Append('"');
             sb.Append(",\"raw\":").Append(RawAmount);
             sb.Append(",\"actual\":").Append(ActualAmount);
             if (Critical) sb.Append(",\"crit\":true");
@@ -35,10 +36,5 @@ namespace ErenshorCombatParser.Models
             return sb.ToString();
         }
 
-        private static string EscapeJson(string s)
-        {
-            if (s == null) return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        }
     }
 }

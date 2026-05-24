@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using ErenshorCombatParser.IO;
 
 namespace ErenshorCombatParser.Core
 {
@@ -20,24 +21,19 @@ namespace ErenshorCombatParser.Core
         {
             var sb = new StringBuilder(128);
             sb.Append("{\"ev\":\"entity\"");
-            sb.Append(",\"id\":\"").Append(EscapeJson(Id)).Append('"');
-            sb.Append(",\"name\":\"").Append(EscapeJson(DisplayName)).Append('"');
+            sb.Append(",\"id\":\"").Append(JsonUtil.EscapeJson(Id)).Append('"');
+            sb.Append(",\"name\":\"").Append(JsonUtil.EscapeJson(DisplayName)).Append('"');
             if (ClassName != null)
-                sb.Append(",\"class\":\"").Append(EscapeJson(ClassName)).Append('"');
+                sb.Append(",\"class\":\"").Append(JsonUtil.EscapeJson(ClassName)).Append('"');
             sb.Append(",\"level\":").Append(Level);
             sb.Append(",\"type\":\"").Append(Type.ToString()).Append('"');
             if (MasterEntityId != null)
-                sb.Append(",\"master\":\"").Append(EscapeJson(MasterEntityId)).Append('"');
+                sb.Append(",\"master\":\"").Append(JsonUtil.EscapeJson(MasterEntityId)).Append('"');
             sb.Append(",\"t\":").Append(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             sb.Append('}');
             return sb.ToString();
         }
 
-        private static string EscapeJson(string s)
-        {
-            if (s == null) return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        }
     }
 
     public static class EntityRegistry
@@ -165,24 +161,19 @@ namespace ErenshorCombatParser.Core
                 var e = kvp.Value;
                 if (!first) sb.Append(',');
                 first = false;
-                sb.Append('"').Append(EscapeJson(e.Id)).Append("\":{");
-                sb.Append("\"name\":\"").Append(EscapeJson(e.DisplayName)).Append('"');
+                sb.Append('"').Append(JsonUtil.EscapeJson(e.Id)).Append("\":{");
+                sb.Append("\"name\":\"").Append(JsonUtil.EscapeJson(e.DisplayName)).Append('"');
                 if (e.ClassName != null)
-                    sb.Append(",\"class\":\"").Append(EscapeJson(e.ClassName)).Append('"');
+                    sb.Append(",\"class\":\"").Append(JsonUtil.EscapeJson(e.ClassName)).Append('"');
                 sb.Append(",\"level\":").Append(e.Level);
                 sb.Append(",\"type\":\"").Append(e.Type.ToString()).Append('"');
                 if (e.MasterEntityId != null)
-                    sb.Append(",\"master\":\"").Append(EscapeJson(e.MasterEntityId)).Append('"');
+                    sb.Append(",\"master\":\"").Append(JsonUtil.EscapeJson(e.MasterEntityId)).Append('"');
                 sb.Append('}');
             }
             sb.Append('}');
             return sb.ToString();
         }
 
-        private static string EscapeJson(string s)
-        {
-            if (s == null) return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        }
     }
 }

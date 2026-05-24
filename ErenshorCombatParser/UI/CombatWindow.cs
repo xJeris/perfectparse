@@ -117,9 +117,6 @@ namespace ErenshorCombatParser.UI
         private const float MinWidth = 300f;
         private const float MinHeight = 200f;
 
-        // Config callback for saving window position
-        public Action<Rect> OnWindowMoved;
-
         public CombatWindow()
         {
             _windowId = "com.erenshor.perfectparse.combatwindow".GetHashCode();
