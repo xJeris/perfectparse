@@ -120,7 +120,7 @@ namespace ErenshorCombatParser.Patches
                 else if (__result == -2) { eventType = "ShieldAbsorb"; finalAmount = 0; }
                 else return; // -1 invuln, -3 friendly, -5 mining, -6 chest — skip
 
-                string source = CombatContext.Get() ?? "Melee";
+                string source = CombatContext.Get(_attacker) ?? "Melee";
 
                 CombatEventBus.EmitDamage(new CombatEvent
                 {
@@ -154,7 +154,7 @@ namespace ErenshorCombatParser.Patches
                 else if (__result == 0) { eventType = "Resist"; finalAmount = 0; }
                 else return;
 
-                string source = CombatContext.Get() ?? "Spell:Unknown";
+                string source = CombatContext.Get(_attacker) ?? "Spell:Unknown";
 
                 CombatEventBus.EmitDamage(new CombatEvent
                 {
@@ -182,7 +182,7 @@ namespace ErenshorCombatParser.Patches
             {
                 if (__result <= 0) return;
 
-                string source = CombatContext.Get() ?? "Bleed";
+                string source = CombatContext.Get(_attacker) ?? "Bleed";
 
                 CombatEventBus.EmitDamage(new CombatEvent
                 {

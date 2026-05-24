@@ -9,7 +9,8 @@ namespace ErenshorCombatParser.Patches
     /// <summary>
     /// Prefix patches that set CombatContext before damage methods fire.
     /// This lets DamagePatches know whether damage came from melee, bow,
-    /// a skill, a spell, or a wand bolt.
+    /// a skill, a spell, or a wand bolt. Context is keyed by attacker
+    /// Character to prevent cross-entity contamination in the same frame.
     /// </summary>
     [HarmonyPatch]
     public static class ContextPatches
@@ -19,9 +20,15 @@ namespace ErenshorCombatParser.Patches
         // ============================================================
         [HarmonyPatch(typeof(PlayerCombat), "HandleDamageResult")]
         [HarmonyPrefix]
-        static void PlayerMelee_Prefix()
+        static void PlayerMelee_Prefix(PlayerCombat __instance)
         {
-            CombatContext.Set("Melee");
+            try
+            {
+                var ch = __instance.GetComponent<Character>();
+                if (ch != null)
+                    CombatContext.Set(ch, "Melee");
+            }
+            catch (Exception) { }
         }
 
         // ============================================================
@@ -29,16 +36,28 @@ namespace ErenshorCombatParser.Patches
         // ============================================================
         [HarmonyPatch(typeof(NPC), "PerformMeleeHit")]
         [HarmonyPrefix]
-        static void NPCMelee_Prefix()
+        static void NPCMelee_Prefix(NPC __instance)
         {
-            CombatContext.Set("Melee");
+            try
+            {
+                var ch = __instance.GetComponent<Character>();
+                if (ch != null)
+                    CombatContext.Set(ch, "Melee");
+            }
+            catch (Exception) { }
         }
 
         [HarmonyPatch(typeof(NPC), "PerformMeleeHitPreCalc")]
         [HarmonyPrefix]
-        static void NPCMeleePreCalc_Prefix()
+        static void NPCMeleePreCalc_Prefix(NPC __instance)
         {
-            CombatContext.Set("Melee");
+            try
+            {
+                var ch = __instance.GetComponent<Character>();
+                if (ch != null)
+                    CombatContext.Set(ch, "Melee");
+            }
+            catch (Exception) { }
         }
 
         // ============================================================
@@ -46,24 +65,32 @@ namespace ErenshorCombatParser.Patches
         // ============================================================
         [HarmonyPatch(typeof(UseSkill), "DoSkill")]
         [HarmonyPrefix]
-        static void DoSkill_Prefix(Skill _skill)
+        static void DoSkill_Prefix(UseSkill __instance, Skill _skill)
         {
             try
             {
                 if (_skill != null)
-                    CombatContext.Set("Skill:" + (_skill.SkillName ?? "Unknown"));
+                {
+                    var ch = __instance.GetComponent<Character>();
+                    if (ch != null)
+                        CombatContext.Set(ch, "Skill:" + (_skill.SkillName ?? "Unknown"));
+                }
             }
             catch (Exception) { }
         }
 
         [HarmonyPatch(typeof(UseSkill), "DoSkillNoChecks")]
         [HarmonyPrefix]
-        static void DoSkillNoChecks_Prefix(Skill _skill)
+        static void DoSkillNoChecks_Prefix(UseSkill __instance, Skill _skill)
         {
             try
             {
                 if (_skill != null)
-                    CombatContext.Set("Skill:" + (_skill.SkillName ?? "Unknown"));
+                {
+                    var ch = __instance.GetComponent<Character>();
+                    if (ch != null)
+                        CombatContext.Set(ch, "Skill:" + (_skill.SkillName ?? "Unknown"));
+                }
             }
             catch (Exception) { }
         }
@@ -78,7 +105,13 @@ namespace ErenshorCombatParser.Patches
             try
             {
                 if (__instance.spell != null)
-                    CombatContext.Set("Spell:" + (__instance.spell.SpellName ?? "Unknown"));
+                {
+                    // SpellSource is a private CastSpell field; CastSpell.MyChar is the caster
+                    var spellSource = Traverse.Create(__instance).Field("SpellSource").GetValue<CastSpell>();
+                    var ch = spellSource?.MyChar;
+                    if (ch != null)
+                        CombatContext.Set(ch, "Spell:" + (__instance.spell.SpellName ?? "Unknown"));
+                }
             }
             catch (Exception) { }
         }
@@ -92,10 +125,14 @@ namespace ErenshorCombatParser.Patches
         {
             try
             {
-                if (__instance.DmgType == GameData.DamageType.Physical)
-                    CombatContext.Set("Bow");
-                else
-                    CombatContext.Set("Wand");
+                var ch = __instance.SourceChar;
+                if (ch != null)
+                {
+                    if (__instance.DmgType == GameData.DamageType.Physical)
+                        CombatContext.Set(ch, "Bow");
+                    else
+                        CombatContext.Set(ch, "Wand");
+                }
             }
             catch (Exception) { }
         }
@@ -120,9 +157,15 @@ namespace ErenshorCombatParser.Patches
             }
 
             [HarmonyPrefix]
-            static void Prefix()
+            static void Prefix(NPC __instance)
             {
-                CombatContext.Set("Bow");
+                try
+                {
+                    var ch = __instance.GetComponent<Character>();
+                    if (ch != null)
+                        CombatContext.Set(ch, "Bow");
+                }
+                catch (Exception) { }
             }
         }
     }
