@@ -158,6 +158,25 @@ tr:hover { background: var(--surface); }
 }
 .stat-card .label { color: var(--text-dim); font-size: 0.8em; margin-bottom: 4px; }
 .stat-card .value { font-size: 1.6em; font-weight: bold; }
+.enc-replay-btn {
+  padding: 2px 10px;
+  background: var(--surface2);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8em;
+}
+.enc-replay-btn:hover { background: var(--accent); color: #141517; }
+#enc-replay-panel {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+#enc-replay-panel h4 { margin-bottom: 12px; color: var(--accent); }
+#enc-replay-panel .replay-controls { margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -189,6 +208,7 @@ tr:hover { background: var(--surface); }
       <input type=""range"" id=""replaySlider"" min=""0"" max=""100"" value=""0"">
       <span id=""replayTime"">0:00</span>
       <select id=""replaySpeed"">
+        <option value=""0.5"">0.5x</option>
         <option value=""1"">1x</option>
         <option value=""2"">2x</option>
         <option value=""5"" selected>5x</option>
@@ -241,12 +261,38 @@ tr:hover { background: var(--surface); }
 
 <!-- Encounters -->
 <div class=""panel"" id=""panel-encounters"">
+  <div id=""enc-replay-panel"" style=""display:none"">
+    <h4 id=""encReplayTitle""></h4>
+    <div class=""replay-controls"">
+      <button id=""encReplayPlayBtn"">▶ Play</button>
+      <input type=""range"" id=""encReplaySlider"" min=""0"" max=""100"" value=""0"">
+      <span id=""encReplayTime"">0:00</span>
+      <select id=""encReplaySpeed"">
+        <option value=""0.5"">0.5x</option>
+        <option value=""1"">1x</option>
+        <option value=""2"">2x</option>
+        <option value=""5"" selected>5x</option>
+        <option value=""10"">10x</option>
+        <option value=""20"">20x</option>
+      </select>
+      <button id=""encReplayClose"" style=""background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)"">✕ Close</button>
+    </div>
+    <div class=""stat-cards"" id=""encReplayCards""></div>
+    <table id=""encReplayTable"">
+      <thead><tr>
+        <th>Character</th><th>Class</th>
+        <th class=""num"">Damage</th><th class=""num"">DPS</th>
+        <th class=""num"">Hits</th><th class=""num"">Crits</th><th>Top Source</th>
+      </tr></thead>
+      <tbody id=""encReplayBody""></tbody>
+    </table>
+  </div>
   <h3>Encounter Log</h3>
   <table id=""encTable"">
     <thead><tr>
       <th>#</th><th>Label</th><th>Duration</th>
       <th class=""num"">Total Damage</th><th class=""num"">Group DPS</th>
-      <th>Manual</th>
+      <th>Manual</th><th></th>
     </tr></thead>
     <tbody id=""encBody""></tbody>
   </table>
@@ -590,7 +636,7 @@ function encCharBreakdown(cgid, ed) {
     h += '<td class=""' + dmgClass(dtName) + '"" style=""padding-left:32px;font-weight:bold"">' + dtName + '</td>';
     h += '<td></td>';
     h += '<td class=""num"">' + fmt(dtTotal) + ' (' + pct + '%)</td>';
-    h += '<td></td><td></td>';
+    h += '<td></td><td></td><td></td>';
     h += '</tr>';
     const sourcesOfType = Object.entries(ed.sourceDetail || {})
       .filter(([,sd]) => sd.dmgType === dtName)
@@ -604,6 +650,7 @@ function encCharBreakdown(cgid, ed) {
       h += '<td class=""num"">' + fmt(sd.total) + ' (' + sPct + '%)</td>';
       h += '<td></td>';
       h += '<td>' + fmt(sd.hits) + ' hits / ' + fmt(sd.crits) + ' crits</td>';
+      h += '<td></td>';
       h += '</tr>';
     }
   }
@@ -626,6 +673,11 @@ function renderEncounters(agg) {
     html += '<td class=""num"">' + fmt(dmg) + '</td>';
     html += '<td class=""num"">' + fmtDps(dps) + '</td>';
     html += '<td>' + (enc.manual ? 'Yes' : '') + '</td>';
+    if (dur > 1000) {
+      html += '<td><button class=""enc-replay-btn"" data-enc-idx=""' + ri + '"" onclick=""startEncReplay(' + ri + ');event.stopPropagation()"">▶ Replay</button></td>';
+    } else {
+      html += '<td></td>';
+    }
     html += '</tr>';
     // Expandable: per-character damage in this encounter, separated by side
     const allChars = Object.entries(entities).sort((a,b) => b[1].dmg - a[1].dmg);
@@ -644,6 +696,7 @@ function renderEncounters(agg) {
       html += '<td class=""num"">' + fmt(ed.dmg) + ' (' + pct + '%)</td>';
       html += '<td class=""num"">' + fmtDps(charDps) + '</td>';
       html += '<td>' + fmt(ed.hits) + ' hits / ' + fmt(ed.crits) + ' crits</td>';
+      html += '<td></td>';
       html += '</tr>';
       html += encCharBreakdown(cgid, ed);
     }
@@ -651,7 +704,7 @@ function renderEncounters(agg) {
     if (npcSide.length > 0) {
       html += '<tr class=""detail-row"" data-group=""' + gid + '"" style=""border-top:2px solid var(--accent)"">';
       html += '<td></td><td style=""color:var(--accent);font-weight:bold"">Enemies</td>';
-      html += '<td></td><td></td><td></td><td></td></tr>';
+      html += '<td></td><td></td><td></td><td></td><td></td></tr>';
       for (const [eid, ed] of npcSide) {
         const charDps = dur > 0 ? ed.dmg / (dur / 1000) : 0;
         const pct = dmg > 0 ? (ed.dmg / dmg * 100).toFixed(1) : '0.0';
@@ -663,6 +716,7 @@ function renderEncounters(agg) {
         html += '<td class=""num"">' + fmt(ed.dmg) + ' (' + pct + '%)</td>';
         html += '<td class=""num"">' + fmtDps(charDps) + '</td>';
         html += '<td>' + fmt(ed.hits) + ' hits / ' + fmt(ed.crits) + ' crits</td>';
+        html += '<td></td>';
         html += '</tr>';
         html += encCharBreakdown(cgid, ed);
       }
@@ -794,7 +848,7 @@ document.getElementById('replayPlayBtn').addEventListener('click', () => {
     }
     replayPlaying = true;
     document.getElementById('replayPlayBtn').textContent = '⏸ Pause';
-    const speed = parseInt(document.getElementById('replaySpeed').value) || 5;
+    const speed = parseFloat(document.getElementById('replaySpeed').value) || 5;
     const interval = Math.max(10, 50 / speed);
     const step = Math.max(1, Math.floor(speed / 2));
     replayTimer = setInterval(() => {
@@ -862,6 +916,172 @@ document.addEventListener('click', (e) => {
     }
   });
 });
+
+// ============================================================
+// Encounter Replay
+// ============================================================
+let encReplayTimer = null;
+let encReplayIndex = 0;
+let encReplayPlaying = false;
+let encReplayEvents = [];
+let encReplayEncIdx = -1;
+
+function startEncReplay(idx) {
+  const enc = ENCOUNTERS[idx];
+  if (!enc) return;
+  const dur = enc.end > 0 ? (enc.end - enc.start) : 0;
+  if (dur <= 1000) return;
+
+  stopEncReplay();
+  // Collapse any expanded encounter rows so stale data isn't visible
+  document.querySelectorAll('#encBody tr.expandable.open').forEach(r => {
+    r.classList.remove('open');
+    const gid = r.dataset.group;
+    if (gid) document.querySelectorAll('tr.detail-row[data-group=""' + gid + '""]').forEach(d => {
+      d.classList.remove('open');
+      if (d.dataset.subgroup) {
+        d.classList.remove('sub-open');
+        document.querySelectorAll('tr.detail-row[data-group=""' + d.dataset.subgroup + '""]').forEach(sd => sd.classList.remove('open'));
+      }
+    });
+  });
+  encReplayEncIdx = idx;
+  encReplayEvents = RAW_EVENTS.filter(ev => ev.enc === enc.id);
+  if (encReplayEvents.length === 0) return;
+
+  encReplayIndex = 0;
+  document.getElementById('encReplayTitle').textContent = 'Replay: ' + (enc.label || 'Encounter ' + enc.id);
+  document.getElementById('enc-replay-panel').style.display = 'block';
+  updateEncReplaySlider();
+  renderEncReplayStats([]);
+  document.getElementById('enc-replay-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function stopEncReplay() {
+  if (encReplayTimer) { clearInterval(encReplayTimer); encReplayTimer = null; }
+  encReplayPlaying = false;
+  const btn = document.getElementById('encReplayPlayBtn');
+  if (btn) btn.textContent = '▶ Play';
+}
+
+function closeEncReplay() {
+  stopEncReplay();
+  document.getElementById('enc-replay-panel').style.display = 'none';
+  encReplayEvents = [];
+  encReplayEncIdx = -1;
+}
+
+function updateEncReplaySlider() {
+  const slider = document.getElementById('encReplaySlider');
+  if (slider) {
+    slider.max = encReplayEvents.length;
+    slider.value = encReplayIndex;
+  }
+  updateEncReplayTime();
+}
+
+function updateEncReplayTime() {
+  const el = document.getElementById('encReplayTime');
+  if (!el || encReplayEvents.length === 0) return;
+  if (encReplayIndex > 0 && encReplayIndex <= encReplayEvents.length) {
+    const first = encReplayEvents[0].t;
+    const cur = encReplayEvents[encReplayIndex - 1].t;
+    el.textContent = fmtTime(cur - first);
+  } else {
+    el.textContent = '0:00';
+  }
+}
+
+function renderEncReplayStats(events) {
+  const enc = ENCOUNTERS[encReplayEncIdx];
+  if (!enc) return;
+  const dur = enc.end > 0 ? (enc.end - enc.start) : 0;
+
+  // Aggregate just these events
+  const chars = {};
+  let totalDmg = 0;
+  for (const ev of events) {
+    if (ev.ev !== 'combat') continue;
+    const src = ev.src || '??';
+    if (ev.type === 'Damage' || ev.type === 'Finale' || ev.type === 'Reflect') {
+      const amt = ev.final || 0;
+      const s = ev.source || 'Unknown';
+      if (s.startsWith('SelfDamage:') || s === 'Environmental') continue;
+      if (!chars[src]) chars[src] = { dmg:0, hits:0, crits:0, bySource:{} };
+      chars[src].dmg += amt;
+      chars[src].hits++;
+      if (ev.crit) chars[src].crits++;
+      chars[src].bySource[s] = (chars[src].bySource[s] || 0) + amt;
+      totalDmg += amt;
+    }
+  }
+
+  // Elapsed time based on current replay position
+  let elapsed = 0;
+  if (events.length > 0) {
+    elapsed = events[events.length - 1].t - encReplayEvents[0].t;
+  }
+  const elapsedSec = elapsed > 0 ? elapsed / 1000 : 1;
+
+  document.getElementById('encReplayCards').innerHTML =
+    card('Damage So Far', fmt(totalDmg)) +
+    card('Group DPS', fmtDps(totalDmg / elapsedSec)) +
+    card('Elapsed', fmtTime(elapsed)) +
+    card('Duration', fmtTime(dur));
+
+  const sorted = Object.entries(chars)
+    .filter(([id]) => isPlayerSide(id))
+    .sort((a,b) => b[1].dmg - a[1].dmg);
+
+  const maxDmg = sorted.length > 0 ? sorted[0][1].dmg : 1;
+  let html = '';
+  for (const [id, c] of sorted) {
+    const dps = c.dmg / elapsedSec;
+    const topSrc = Object.entries(c.bySource).sort((a,b) => b[1]-a[1])[0];
+    html += '<tr>';
+    html += '<td>' + entityName(id) + '</td>';
+    html += '<td>' + entityClass(id) + '</td>';
+    html += '<td class=""num"">' + fmt(c.dmg) + '<div class=""bar"" style=""width:' + (c.dmg/maxDmg*100) + '%""></div></td>';
+    html += '<td class=""num"">' + fmtDps(dps) + '</td>';
+    html += '<td class=""num"">' + fmt(c.hits) + '</td>';
+    html += '<td class=""num"">' + fmt(c.crits) + '</td>';
+    html += '<td>' + (topSrc ? topSrc[0] : '-') + '</td>';
+    html += '</tr>';
+  }
+  document.getElementById('encReplayBody').innerHTML = html;
+}
+
+document.getElementById('encReplayPlayBtn').addEventListener('click', () => {
+  if (encReplayPlaying) {
+    stopEncReplay();
+  } else {
+    if (encReplayIndex >= encReplayEvents.length) {
+      encReplayIndex = 0;
+      updateEncReplaySlider();
+      renderEncReplayStats([]);
+    }
+    encReplayPlaying = true;
+    document.getElementById('encReplayPlayBtn').textContent = '⏸ Pause';
+    const speed = parseFloat(document.getElementById('encReplaySpeed').value) || 5;
+    const interval = Math.max(10, 50 / speed);
+    const step = Math.max(1, Math.floor(speed / 2));
+    encReplayTimer = setInterval(() => {
+      encReplayIndex = Math.min(encReplayIndex + step, encReplayEvents.length);
+      updateEncReplaySlider();
+      renderEncReplayStats(encReplayEvents.slice(0, encReplayIndex));
+      if (encReplayIndex >= encReplayEvents.length) stopEncReplay();
+    }, interval);
+  }
+});
+
+document.getElementById('encReplaySlider').addEventListener('input', (e) => {
+  stopEncReplay();
+  encReplayIndex = parseInt(e.target.value);
+  updateEncReplayTime();
+  renderEncReplayStats(encReplayEvents.slice(0, encReplayIndex));
+});
+
+document.getElementById('encReplayClose').addEventListener('click', closeEncReplay);
 
 // ============================================================
 // Initial render

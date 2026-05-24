@@ -37,10 +37,12 @@ namespace ErenshorCombatParser.IO
 
             bool firstEvent = true;
             bool firstEntity = true;
-            // Track encounter IDs we've seen to build encounter list
+            // Track encounter IDs and per-encounter timestamp ranges
             int maxEncId = 0;
             long firstTimestamp = 0;
             long lastTimestamp = 0;
+            var encStart = new System.Collections.Generic.Dictionary<int, long>();
+            var encEnd = new System.Collections.Generic.Dictionary<int, long>();
 
             for (int i = 0; i < lines.Length; i++)
             {
@@ -88,31 +90,43 @@ namespace ErenshorCombatParser.IO
 
                     // Track timestamps for encounter estimation
                     string ts = ExtractJsonValue(line, "t");
-                    if (ts != null && long.TryParse(ts, out long t))
+                    long t = 0;
+                    if (ts != null && long.TryParse(ts, out t))
                     {
                         if (firstTimestamp == 0) firstTimestamp = t;
                         lastTimestamp = t;
                     }
 
-                    // Track max encounter ID
+                    // Track per-encounter timestamp ranges
                     string enc = ExtractJsonValue(line, "enc");
-                    if (enc != null && int.TryParse(enc, out int encId) && encId > maxEncId)
-                        maxEncId = encId;
+                    if (enc != null && int.TryParse(enc, out int encId) && encId > 0)
+                    {
+                        if (encId > maxEncId) maxEncId = encId;
+                        if (t > 0)
+                        {
+                            if (!encStart.ContainsKey(encId) || t < encStart[encId])
+                                encStart[encId] = t;
+                            if (!encEnd.ContainsKey(encId) || t > encEnd[encId])
+                                encEnd[encId] = t;
+                        }
+                    }
                 }
             }
 
             eventsSb.Append(']');
             entitySb.Append('}');
 
-            // Build encounter array — we don't have full encounter metadata in standalone
-            // mode, but we can note which encounter IDs existed
+            // Build encounter array — derive start/end from event timestamps
             bool firstEnc = true;
             for (int id = 1; id <= maxEncId; id++)
             {
                 if (!firstEnc) encounterSb.Append(',');
                 firstEnc = false;
+                long eStart = encStart.ContainsKey(id) ? encStart[id] : 0;
+                long eEnd = encEnd.ContainsKey(id) ? encEnd[id] : 0;
                 encounterSb.Append("{\"id\":").Append(id);
-                encounterSb.Append(",\"start\":0,\"end\":0");
+                encounterSb.Append(",\"start\":").Append(eStart);
+                encounterSb.Append(",\"end\":").Append(eEnd);
                 encounterSb.Append(",\"label\":\"Encounter ").Append(id).Append('"');
                 encounterSb.Append('}');
             }
