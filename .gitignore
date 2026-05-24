@@ -18,8 +18,11 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Decompiled game reference (large, not distributable)
-reference/ilspydata/
+# Reference material (decompiled game data, implementation plans)
+reference/
+
+# Claude Code instructions
+CLAUDE.md
 
 # Distribution / release artifacts
 dist/
