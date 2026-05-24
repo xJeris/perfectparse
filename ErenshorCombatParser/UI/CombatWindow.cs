@@ -109,6 +109,9 @@ namespace ErenshorCombatParser.UI
         private GUIStyle _tabInactiveStyle;
         private bool _stylesInitialized;
 
+        // Input blocking state
+        private bool _ownsDragFlag;
+
         // Resize state
         private bool _isResizing;
         private Vector2 _resizeDragStart;
@@ -400,15 +403,34 @@ namespace ErenshorCombatParser.UI
 
         public void Draw()
         {
-            if (!Visible) return;
+            if (!Visible)
+            {
+                // Release drag flag if we owned it when the window was hidden
+                if (_ownsDragFlag)
+                {
+                    GameData.DraggingUIElement = false;
+                    _ownsDragFlag = false;
+                }
+                return;
+            }
             InitStyles();
             UpdateCache();
 
-            // Block game camera rotation while mouse is over our window
+            // Block game camera rotation while mouse is over our window.
+            // We track whether we set the flag so we can safely clear it when the
+            // mouse leaves, without interfering with other UI elements.
             var mousePos = Event.current.mousePosition;
             bool mouseOverWindow = WindowRect.Contains(mousePos);
             if (mouseOverWindow)
+            {
                 GameData.DraggingUIElement = true;
+                _ownsDragFlag = true;
+            }
+            else if (_ownsDragFlag)
+            {
+                GameData.DraggingUIElement = false;
+                _ownsDragFlag = false;
+            }
 
             var savedSkin = GUI.skin;
             var savedColor = GUI.color;
@@ -452,6 +474,15 @@ namespace ErenshorCombatParser.UI
             }
 
             GUILayout.EndScrollView();
+
+            // Manually apply scroll wheel and consume the event so the game
+            // camera zoom doesn't also react. BeginScrollView alone doesn't
+            // reliably eat the event across all IMGUI passes.
+            if (Event.current.type == EventType.ScrollWheel)
+            {
+                _scrollPos.y += Event.current.delta.y * 20f;
+                Event.current.Use();
+            }
 
             // Draw resize grip in bottom-right corner
             var savedColor2 = GUI.color;

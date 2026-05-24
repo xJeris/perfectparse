@@ -106,6 +106,7 @@ namespace ErenshorCombatParser
             // Apply patches
             Patches.DamagePatches.Apply(_harmony);
             Patches.HealPatches.Apply(_harmony);
+            Patches.CameraPatches.Apply(_harmony);
             _harmony.PatchAll();
 
             Logger.LogInfo($"{PluginName} v{PluginVersion} loaded.");
