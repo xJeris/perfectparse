@@ -16,8 +16,13 @@ namespace ErenshorCombatParser.Patches
     {
         private static readonly ManualLogSource Log = Logger.CreateLogSource("PerfectParse.Damage");
 
-        // Bleed owner queue: built once per target per frame tick, consumed in order
-        private static readonly Queue<Character> _bleedOwnerQueue = new Queue<Character>();
+        // Bleed info queue: built once per target per frame tick, consumed in order
+        private struct BleedInfo
+        {
+            public Character Owner;
+            public string SpellName;
+        }
+        private static readonly Queue<BleedInfo> _bleedQueue = new Queue<BleedInfo>();
         private static int _bleedQueueFrame = -1;
         private static Character _bleedQueueTarget;
 
@@ -192,7 +197,7 @@ namespace ErenshorCombatParser.Patches
                 int frame = UnityEngine.Time.frameCount;
                 if (frame != _bleedQueueFrame || _bleedQueueTarget != __instance)
                 {
-                    _bleedOwnerQueue.Clear();
+                    _bleedQueue.Clear();
                     _bleedQueueFrame = frame;
                     _bleedQueueTarget = __instance;
 
@@ -207,7 +212,11 @@ namespace ErenshorCombatParser.Patches
                                 if (effects[i] != null && effects[i].Effect != null
                                     && effects[i].Effect.BleedDamagePercent > 0)
                                 {
-                                    _bleedOwnerQueue.Enqueue(effects[i].Owner);
+                                    _bleedQueue.Enqueue(new BleedInfo
+                                    {
+                                        Owner = effects[i].Owner,
+                                        SpellName = effects[i].Effect.SpellName
+                                    });
                                 }
                             }
                         }
@@ -228,12 +237,18 @@ namespace ErenshorCombatParser.Patches
                 if (__result <= 0) return;
 
                 // Use the actual attacker if provided, otherwise dequeue the
-                // next bleed owner (matched by slot order in TickEffects)
+                // next bleed info (matched by slot order in TickEffects)
                 var effectiveAttacker = _attacker;
-                if (effectiveAttacker == null && _bleedOwnerQueue.Count > 0)
-                    effectiveAttacker = _bleedOwnerQueue.Dequeue();
+                string source = "Bleed";
 
-                string source = CombatContext.Get(effectiveAttacker) ?? "Bleed";
+                if (effectiveAttacker == null && _bleedQueue.Count > 0)
+                {
+                    var info = _bleedQueue.Dequeue();
+                    effectiveAttacker = info.Owner;
+                    source = !string.IsNullOrEmpty(info.SpellName)
+                        ? "Bleed:" + info.SpellName
+                        : "Bleed";
+                }
 
                 CombatEventBus.EmitDamage(new CombatEvent
                 {
