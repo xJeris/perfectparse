@@ -17,7 +17,7 @@ namespace ErenshorCombatParser
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.3.0";
+        public const string PluginVersion = "0.3.1";
 
         // Config entries
         private ConfigEntry<KeyCode> _encounterToggleKey;
@@ -113,6 +113,7 @@ namespace ErenshorCombatParser
             Patches.DamagePatches.Apply(_harmony);
             Patches.HealPatches.Apply(_harmony);
             Patches.CameraPatches.Apply(_harmony);
+            Patches.BossMechanicPatches.Apply(_harmony);
             _harmony.PatchAll();
 
             Logger.LogInfo($"{PluginName} v{PluginVersion} loaded.");
@@ -277,10 +278,13 @@ namespace ErenshorCombatParser
 
             _harmony?.UnpatchSelf();
 
-            // Generate report while the writer is still alive (FlushSync needs it)
+            // Generate report on exit, but only if combat events were actually logged
             try
             {
-                GenerateReport();
+                _writer?.FlushSync();
+                var logFile = new FileInfo(_writer.FilePath);
+                if (logFile.Exists && logFile.Length > 0)
+                    GenerateReport();
             }
             catch (Exception) { }
 

@@ -116,7 +116,7 @@ PerfectParseReport/          Standalone CLI report generator (EXE)
 
 ## Known Issues
 
-- **"Spell:Unknown" in damage sources:** Some NPC special abilities (AoE ticks, breath attacks, boss mechanics) call the game's `MagicDamageMe` directly without going through the standard spell resolution path. PerfectParse cannot identify the spell name for these attacks, so they appear as "Spell:Unknown". This is a game-side limitation, not a mod bug.
+- **"Spell:Unknown" in damage sources:** Most NPC special abilities (AoE ticks, breath attacks, boss mechanics) are now identified by name via dedicated patches. A few undiscovered NPC scripts or coroutine-based mechanics may still show as "Spell:Unknown". If you encounter one, please report it.
 - **"??" entity in damage sources:** Bleed damage ticks in Erenshor do not carry a reference to the original attacker — the game passes `null` as the attacker for all bleed ticks. These show up as "??" in the damage breakdowns. This is a game-side limitation, not a mod bug.
 
 ## License
