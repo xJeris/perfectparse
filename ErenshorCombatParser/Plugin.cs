@@ -17,7 +17,7 @@ namespace ErenshorCombatParser
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.2.4";
+        public const string PluginVersion = "0.3.0";
 
         // Config entries
         private ConfigEntry<KeyCode> _encounterToggleKey;

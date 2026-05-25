@@ -13,9 +13,10 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks
 - Automatic and manual encounter boundaries with idle timeout
 - JSONL event logging (async, non-blocking background writer) with automatic file rotation at configurable size cap
 - **Live in-game combat window** (F11) with:
-  - 4 tabs: Overview, Damage, Healing, Encounters
+  - 5 tabs: Overview, Damage, Healing, Encounters, Targets
   - Real-time DPS, damage, and healing stats updated during combat
   - Expandable per-character breakdowns with damage type and source detail
+  - **Targets tab** with incoming damage by attacker and outgoing damage by target
   - Color-coded damage types (Physical, Magic, Elemental, Void, Poison)
   - Draggable and resizable window (position/size saved between sessions)
   - Background darkens on mouse hover for readability
@@ -23,8 +24,9 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks
 - Generates report and opens in default browser on F10
 - Streaming HTML report generation (memory-efficient for long sessions)
 - Self-contained HTML reports with:
-  - 5 tabs: Overview, Damage, Healing, Encounters, NPCs/Enemies
+  - 6 tabs: Overview, Damage, Healing, Encounters, NPCs/Enemies, Targets
   - Expandable per-character breakdowns with damage type/source detail
+  - **Targets tab** with nested expandable incoming/outgoing damage breakdowns
   - DPS by session and encounter time
   - Damage type color coding
   - Replay mode with adjustable playback speed
@@ -111,6 +113,11 @@ ErenshorCombatParser/        Main mod (BepInEx plugin DLL)
 
 PerfectParseReport/          Standalone CLI report generator (EXE)
 ```
+
+## Known Issues
+
+- **"Spell:Unknown" in damage sources:** Some NPC special abilities (AoE ticks, breath attacks, boss mechanics) call the game's `MagicDamageMe` directly without going through the standard spell resolution path. PerfectParse cannot identify the spell name for these attacks, so they appear as "Spell:Unknown". This is a game-side limitation, not a mod bug.
+- **"??" entity in damage sources:** Bleed damage ticks in Erenshor do not carry a reference to the original attacker — the game passes `null` as the attacker for all bleed ticks. These show up as "??" in the damage breakdowns. This is a game-side limitation, not a mod bug.
 
 ## License
 

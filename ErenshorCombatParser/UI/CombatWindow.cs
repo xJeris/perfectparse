@@ -46,6 +46,22 @@ namespace ErenshorCombatParser.UI
             public long Overhealing;
         }
 
+        private class EntityTaken
+        {
+            public long Total;
+            public int Hits;
+            public Dictionary<string, AttackerDetail> ByAttacker = new Dictionary<string, AttackerDetail>();
+        }
+
+        private class AttackerDetail
+        {
+            public long Total;
+            public int Hits;
+            public int Crits;
+            public Dictionary<string, long> ByType = new Dictionary<string, long>();
+            public Dictionary<string, SourceDetail> BySource = new Dictionary<string, SourceDetail>();
+        }
+
         private class EncEntityDmg
         {
             public long Dmg;
@@ -64,6 +80,8 @@ namespace ErenshorCombatParser.UI
         // --- State ---
 
         private readonly Dictionary<string, EntityDmg> _dmgDealt = new Dictionary<string, EntityDmg>();
+        private readonly Dictionary<string, EntityTaken> _dmgTaken = new Dictionary<string, EntityTaken>();
+        private readonly Dictionary<string, Dictionary<string, AttackerDetail>> _dmgByTarget = new Dictionary<string, Dictionary<string, AttackerDetail>>();
         private readonly Dictionary<string, EntityHeal> _healDone = new Dictionary<string, EntityHeal>();
         private readonly Dictionary<int, EncStats> _encStats = new Dictionary<int, EncStats>();
         private readonly Dictionary<string, EntitySnapshot> _entities = new Dictionary<string, EntitySnapshot>();
@@ -75,7 +93,7 @@ namespace ErenshorCombatParser.UI
         public bool Visible;
         public Rect WindowRect;
         private int _tabIndex;
-        private readonly string[] _tabNames = { "Overview", "Damage", "Healing", "Encounters" };
+        private readonly string[] _tabNames = { "Overview", "Damage", "Healing", "Encounters", "Targets" };
         private Vector2 _scrollPos;
         private readonly HashSet<string> _expanded = new HashSet<string>();
 
@@ -202,6 +220,67 @@ namespace ErenshorCombatParser.UI
                     esd.Hits++;
                     if (evt.Critical) esd.Crits++;
                 }
+
+                // --- Incoming damage (dmgTaken) ---
+                string tgt = evt.TargetId ?? "??";
+                if (!_dmgTaken.TryGetValue(tgt, out var tk))
+                {
+                    tk = new EntityTaken();
+                    _dmgTaken[tgt] = tk;
+                }
+                tk.Total += amt;
+                tk.Hits++;
+
+                if (!tk.ByAttacker.TryGetValue(src, out var atk))
+                {
+                    atk = new AttackerDetail();
+                    tk.ByAttacker[src] = atk;
+                }
+                atk.Total += amt;
+                atk.Hits++;
+                if (evt.Critical) atk.Crits++;
+                if (atk.ByType.ContainsKey(dt))
+                    atk.ByType[dt] += amt;
+                else
+                    atk.ByType[dt] = amt;
+                if (!atk.BySource.TryGetValue(source, out var atkSd))
+                {
+                    atkSd = new SourceDetail { DmgType = dt };
+                    atk.BySource[source] = atkSd;
+                }
+                atkSd.Total += amt;
+                atkSd.Hits++;
+                if (evt.Critical) atkSd.Crits++;
+
+                // --- Outgoing damage by target (dmgByTarget) ---
+                if (!isSelfDmg)
+                {
+                    if (!_dmgByTarget.TryGetValue(src, out var dbt))
+                    {
+                        dbt = new Dictionary<string, AttackerDetail>();
+                        _dmgByTarget[src] = dbt;
+                    }
+                    if (!dbt.TryGetValue(tgt, out var tgtDetail))
+                    {
+                        tgtDetail = new AttackerDetail();
+                        dbt[tgt] = tgtDetail;
+                    }
+                    tgtDetail.Total += amt;
+                    tgtDetail.Hits++;
+                    if (evt.Critical) tgtDetail.Crits++;
+                    if (tgtDetail.ByType.ContainsKey(dt))
+                        tgtDetail.ByType[dt] += amt;
+                    else
+                        tgtDetail.ByType[dt] = amt;
+                    if (!tgtDetail.BySource.TryGetValue(source, out var tgtSd))
+                    {
+                        tgtSd = new SourceDetail { DmgType = dt };
+                        tgtDetail.BySource[source] = tgtSd;
+                    }
+                    tgtSd.Total += amt;
+                    tgtSd.Hits++;
+                    if (evt.Critical) tgtSd.Crits++;
+                }
             }
             else if (evt.Type == "Miss")
             {
@@ -250,6 +329,8 @@ namespace ErenshorCombatParser.UI
         public void Reset()
         {
             _dmgDealt.Clear();
+            _dmgTaken.Clear();
+            _dmgByTarget.Clear();
             _healDone.Clear();
             _encStats.Clear();
             _entities.Clear();
@@ -496,6 +577,7 @@ namespace ErenshorCombatParser.UI
                 case 1: DrawDamage(); break;
                 case 2: DrawHealing(); break;
                 case 3: DrawEncounters(); break;
+                case 4: DrawTargets(); break;
             }
 
             GUILayout.EndScrollView();
@@ -626,7 +708,7 @@ namespace ErenshorCombatParser.UI
                 GUILayout.EndHorizontal();
 
                 if (isExpanded)
-                    DrawSourceBreakdown(d, "ov-src-" + kvp.Key);
+                    DrawSourceBreakdown(d);
             }
         }
 
@@ -650,6 +732,8 @@ namespace ErenshorCombatParser.UI
             GUI.color = savedColor;
             GUILayout.Label("Miss", _headerStyle, GUILayout.Width(45));
             GUILayout.Label("Resist", _headerStyle, GUILayout.Width(45));
+            GUILayout.Label("Taken", _headerStyle, GUILayout.Width(60));
+            GUILayout.Label("Top Atk", _headerStyle, GUILayout.Width(80));
             GUILayout.EndHorizontal();
 
             var sorted = _dmgDealt
@@ -668,6 +752,18 @@ namespace ErenshorCombatParser.UI
                 d.ByType.TryGetValue("Magic", out magic);
                 d.ByType.TryGetValue("Elemental", out elem);
 
+                long taken = 0;
+                string topAtk = "-";
+                if (_dmgTaken.TryGetValue(kvp.Key, out var tkData))
+                {
+                    taken = tkData.Total;
+                    if (tkData.ByAttacker.Count > 0)
+                    {
+                        var topEntry = tkData.ByAttacker.OrderByDescending(a => a.Value.Total).First();
+                        topAtk = EntityName(topEntry.Key);
+                    }
+                }
+
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button(isExpanded ? "\u25BC" : "\u25B6", GUILayout.Width(18), GUILayout.Height(18)))
                     ToggleExpanded(groupId);
@@ -683,36 +779,42 @@ namespace ErenshorCombatParser.UI
                 GUI.color = savedColor;
                 GUILayout.Label(d.Misses.ToString(), _rowStyle, GUILayout.Width(45));
                 GUILayout.Label(d.Resists.ToString(), _rowStyle, GUILayout.Width(45));
+                GUILayout.Label(FmtNum(taken), _rowStyle, GUILayout.Width(60));
+                GUILayout.Label(topAtk, _rowStyle, GUILayout.Width(80));
                 GUILayout.EndHorizontal();
 
                 if (isExpanded)
-                    DrawSourceBreakdown(d, "dmg-src-" + kvp.Key);
+                    DrawSourceBreakdown(d);
             }
         }
 
-        // --- Shared: Source breakdown (type -> source) ---
+        // --- Shared: Type -> source breakdown ---
 
-        private void DrawSourceBreakdown(EntityDmg d, string prefix)
+        private void DrawSourceBreakdown(EntityDmg d)
+        {
+            DrawTypeSourceDetail(d.ByType, d.BySource, d.Total, 28);
+        }
+
+        private void DrawTypeSourceDetail(Dictionary<string, long> byType, Dictionary<string, SourceDetail> bySource, long total, int indent)
         {
             var savedColor = GUI.color;
-            var sortedTypes = d.ByType.OrderByDescending(t => t.Value).ToList();
+            var sortedTypes = byType.OrderByDescending(t => t.Value).ToList();
 
             foreach (var typeKvp in sortedTypes)
             {
                 string dtName = typeKvp.Key;
                 long dtTotal = typeKvp.Value;
-                string pct = d.Total > 0 ? (dtTotal * 100.0 / d.Total).ToString("F1") : "0.0";
+                string pct = total > 0 ? (dtTotal * 100.0 / total).ToString("F1") : "0.0";
 
                 GUI.color = DmgTypeColor(dtName);
                 GUILayout.BeginHorizontal();
-                GUILayout.Space(28);
+                GUILayout.Space(indent);
                 GUILayout.Label(dtName, _headerStyle, GUILayout.Width(90));
                 GUILayout.Label(FmtNum(dtTotal) + " (" + pct + "%)", _rowStyle, GUILayout.Width(120));
                 GUILayout.EndHorizontal();
                 GUI.color = savedColor;
 
-                // Sources under this type
-                var sources = d.BySource
+                var sources = bySource
                     .Where(s => s.Value.DmgType == dtName)
                     .OrderByDescending(s => s.Value.Total)
                     .ToList();
@@ -723,7 +825,7 @@ namespace ErenshorCombatParser.UI
                     string sPct = sd.SelfDmg ? "n/a" : (dtTotal > 0 ? (sd.Total * 100.0 / dtTotal).ToString("F1") + "%" : "0.0%");
 
                     GUILayout.BeginHorizontal();
-                    GUILayout.Space(48);
+                    GUILayout.Space(indent + 20);
                     GUILayout.Label(srcKvp.Key, _rowStyle, GUILayout.Width(120));
                     GUILayout.Label(FmtNum(sd.Total) + " (" + sPct + ")", _rowStyle, GUILayout.Width(100));
                     GUILayout.Label(sd.Hits + " hits", _rowStyle, GUILayout.Width(60));
@@ -866,6 +968,140 @@ namespace ErenshorCombatParser.UI
             }
         }
 
+        // --- Targets Tab ---
+
+        private void DrawTargets()
+        {
+            var savedColor = GUI.color;
+
+            // === Damage Taken (Incoming) ===
+            GUI.color = ColAccent;
+            GUILayout.Label("Damage Taken (Incoming)", _headerStyle);
+            GUI.color = savedColor;
+            GUILayout.Space(4);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Name", _headerStyle, GUILayout.Width(120));
+            GUILayout.Label("Class", _headerStyle, GUILayout.Width(80));
+            GUILayout.Label("Taken", _headerStyle, GUILayout.Width(70));
+            GUILayout.Label("Hits", _headerStyle, GUILayout.Width(45));
+            GUILayout.Label("Top Attacker", _headerStyle, GUILayout.Width(120));
+            GUILayout.EndHorizontal();
+
+            var takenSorted = _dmgTaken
+                .Where(kvp => IsPlayerSide(kvp.Key))
+                .OrderByDescending(kvp => kvp.Value.Total)
+                .ToList();
+
+            foreach (var kvp in takenSorted)
+            {
+                var tk = kvp.Value;
+                string groupId = "tgt-in-" + kvp.Key;
+                bool isExpanded = _expanded.Contains(groupId);
+
+                var attackers = tk.ByAttacker.OrderByDescending(a => a.Value.Total).ToList();
+                string topAtk = attackers.Count > 0 ? EntityName(attackers[0].Key) : "-";
+
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button(isExpanded ? "\u25BC" : "\u25B6", GUILayout.Width(18), GUILayout.Height(18)))
+                    ToggleExpanded(groupId);
+                GUILayout.Label(EntityName(kvp.Key), _rowStyle, GUILayout.Width(100));
+                GUILayout.Label(EntityClass(kvp.Key), _rowStyle, GUILayout.Width(80));
+                GUILayout.Label(FmtNum(tk.Total), _rowStyle, GUILayout.Width(70));
+                GUILayout.Label(tk.Hits.ToString(), _rowStyle, GUILayout.Width(45));
+                GUILayout.Label(topAtk, _rowStyle, GUILayout.Width(120));
+                GUILayout.EndHorizontal();
+
+                if (isExpanded)
+                {
+                    foreach (var atkKvp in attackers)
+                    {
+                        var atk = atkKvp.Value;
+                        string atkGroup = groupId + "-" + atkKvp.Key;
+                        bool isAtkExpanded = _expanded.Contains(atkGroup);
+                        string pct = tk.Total > 0 ? (atk.Total * 100.0 / tk.Total).ToString("F1") : "0.0";
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Space(20);
+                        if (GUILayout.Button(isAtkExpanded ? "\u25BC" : "\u25B6", GUILayout.Width(18), GUILayout.Height(18)))
+                            ToggleExpanded(atkGroup);
+                        bool isNpc = !IsPlayerSide(atkKvp.Key);
+                        if (isNpc) GUI.color = ColDim;
+                        GUILayout.Label(EntityName(atkKvp.Key), _rowStyle, GUILayout.Width(100));
+                        GUI.color = savedColor;
+                        GUILayout.Label(FmtNum(atk.Total) + " (" + pct + "%)", _rowStyle, GUILayout.Width(100));
+                        GUILayout.Label(atk.Hits + " hits / " + atk.Crits + " crits", _rowStyle, GUILayout.Width(110));
+                        GUILayout.EndHorizontal();
+
+                        if (isAtkExpanded)
+                            DrawTypeSourceDetail(atk.ByType, atk.BySource, atk.Total, 48);
+                    }
+                }
+            }
+
+            GUILayout.Space(16);
+
+            // === Damage Dealt by Target (Outgoing) ===
+            GUI.color = ColAccent;
+            GUILayout.Label("Damage Dealt by Target (Outgoing)", _headerStyle);
+            GUI.color = savedColor;
+            GUILayout.Space(4);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Name", _headerStyle, GUILayout.Width(120));
+            GUILayout.Label("Class", _headerStyle, GUILayout.Width(80));
+            GUILayout.Label("Targets", _headerStyle, GUILayout.Width(55));
+            GUILayout.EndHorizontal();
+
+            var outSorted = _dmgByTarget
+                .Where(kvp => IsPlayerSide(kvp.Key))
+                .OrderByDescending(kvp => _dmgDealt.TryGetValue(kvp.Key, out var dd) ? dd.Total : 0)
+                .ToList();
+
+            foreach (var kvp in outSorted)
+            {
+                string groupId = "tgt-out-" + kvp.Key;
+                bool isExpanded = _expanded.Contains(groupId);
+
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button(isExpanded ? "\u25BC" : "\u25B6", GUILayout.Width(18), GUILayout.Height(18)))
+                    ToggleExpanded(groupId);
+                GUILayout.Label(EntityName(kvp.Key), _rowStyle, GUILayout.Width(100));
+                GUILayout.Label(EntityClass(kvp.Key), _rowStyle, GUILayout.Width(80));
+                GUILayout.Label(kvp.Value.Count.ToString(), _rowStyle, GUILayout.Width(55));
+                GUILayout.EndHorizontal();
+
+                if (isExpanded)
+                {
+                    long totalDealt = _dmgDealt.TryGetValue(kvp.Key, out var dd2) ? dd2.Total : 0;
+                    var targets = kvp.Value.OrderByDescending(t => t.Value.Total).ToList();
+
+                    foreach (var tgtKvp in targets)
+                    {
+                        var td = tgtKvp.Value;
+                        string tgtGroup = groupId + "-" + tgtKvp.Key;
+                        bool isTgtExpanded = _expanded.Contains(tgtGroup);
+                        string pct = totalDealt > 0 ? (td.Total * 100.0 / totalDealt).ToString("F1") : "0.0";
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Space(20);
+                        if (GUILayout.Button(isTgtExpanded ? "\u25BC" : "\u25B6", GUILayout.Width(18), GUILayout.Height(18)))
+                            ToggleExpanded(tgtGroup);
+                        bool isNpc = !IsPlayerSide(tgtKvp.Key);
+                        if (isNpc) GUI.color = ColDim;
+                        GUILayout.Label(EntityName(tgtKvp.Key), _rowStyle, GUILayout.Width(100));
+                        GUI.color = savedColor;
+                        GUILayout.Label(FmtNum(td.Total) + " (" + pct + "%)", _rowStyle, GUILayout.Width(100));
+                        GUILayout.Label(td.Hits + " hits / " + td.Crits + " crits", _rowStyle, GUILayout.Width(110));
+                        GUILayout.EndHorizontal();
+
+                        if (isTgtExpanded)
+                            DrawTypeSourceDetail(td.ByType, td.BySource, td.Total, 48);
+                    }
+                }
+            }
+        }
+
         private void DrawEncCharRow(KeyValuePair<string, EncEntityDmg> charKvp, long totalEncDmg, long dur, string parentGroup)
         {
             var savedColor = GUI.color;
@@ -891,43 +1127,7 @@ namespace ErenshorCombatParser.UI
             GUILayout.EndHorizontal();
 
             if (isCharExpanded)
-            {
-                // Type -> source breakdown
-                var sortedTypes = ed.ByType.OrderByDescending(t => t.Value).ToList();
-                foreach (var typeKvp in sortedTypes)
-                {
-                    string dtName = typeKvp.Key;
-                    long dtTotal = typeKvp.Value;
-                    string dtPct = ed.Dmg > 0 ? (dtTotal * 100.0 / ed.Dmg).ToString("F1") : "0.0";
-
-                    GUI.color = DmgTypeColor(dtName);
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Space(48);
-                    GUILayout.Label(dtName, _headerStyle, GUILayout.Width(90));
-                    GUILayout.Label(FmtNum(dtTotal) + " (" + dtPct + "%)", _rowStyle, GUILayout.Width(120));
-                    GUILayout.EndHorizontal();
-                    GUI.color = savedColor;
-
-                    var sources = ed.BySource
-                        .Where(s => s.Value.DmgType == dtName)
-                        .OrderByDescending(s => s.Value.Total)
-                        .ToList();
-
-                    foreach (var srcKvp in sources)
-                    {
-                        var sd = srcKvp.Value;
-                        string sPct = dtTotal > 0 ? (sd.Total * 100.0 / dtTotal).ToString("F1") + "%" : "0.0%";
-
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Space(68);
-                        GUILayout.Label(srcKvp.Key, _rowStyle, GUILayout.Width(120));
-                        GUILayout.Label(FmtNum(sd.Total) + " (" + sPct + ")", _rowStyle, GUILayout.Width(100));
-                        GUILayout.Label(sd.Hits + " hits", _rowStyle, GUILayout.Width(60));
-                        GUILayout.Label(sd.Crits + " crits", _rowStyle, GUILayout.Width(60));
-                        GUILayout.EndHorizontal();
-                    }
-                }
-            }
+                DrawTypeSourceDetail(ed.ByType, ed.BySource, ed.Dmg, 48);
         }
 
         // --- Helpers ---

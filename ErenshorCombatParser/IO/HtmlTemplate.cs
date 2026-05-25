@@ -226,6 +226,7 @@ tr:hover { background: var(--surface); }
   <div class=""tab"" data-tab=""healing"">Healing</div>
   <div class=""tab"" data-tab=""encounters"">Encounters</div>
   <div class=""tab"" data-tab=""npcs"">NPCs / Enemies</div>
+  <div class=""tab"" data-tab=""targets"">Targets</div>
 </div>
 
 <div class=""content"">
@@ -273,7 +274,7 @@ tr:hover { background: var(--surface); }
       <th class=""num"">Total Dealt</th><th class=""num"">Total Taken</th>
       <th class=""num"">Phys Dealt</th><th class=""num"">Magic Dealt</th>
       <th class=""num"">Elem Dealt</th><th class=""num"">Misses</th>
-      <th class=""num"">Resists</th>
+      <th class=""num"">Resists</th><th>Top Attacker</th>
     </tr></thead>
     <tbody id=""dmgBody""></tbody>
   </table>
@@ -345,6 +346,27 @@ tr:hover { background: var(--surface); }
   </table>
 </div>
 
+<!-- Targets -->
+<div class=""panel"" id=""panel-targets"">
+  <h3>Damage Taken (Incoming)</h3>
+  <table id=""takenTable"">
+    <thead><tr>
+      <th>Character</th><th>Class</th>
+      <th class=""num"">Total Taken</th><th class=""num"">Hits</th>
+      <th>Top Attacker</th>
+    </tr></thead>
+    <tbody id=""takenBody""></tbody>
+  </table>
+  <h3 style=""margin-top:24px"">Damage Dealt by Target (Outgoing)</h3>
+  <table id=""outgoingTable"">
+    <thead><tr>
+      <th>Character</th><th>Class</th>
+      <th class=""num"">Total Dealt</th><th>Targets</th><th></th>
+    </tr></thead>
+    <tbody id=""outgoingBody""></tbody>
+  </table>
+</div>
+
 </div>
 
 <script>
@@ -402,7 +424,8 @@ function isPlayerSide(id) {
 // ============================================================
 function aggregate(events) {
   const dmgDealt = {};   // id -> { total, byType:{}, bySource:{}, hits, crits, misses, resists }
-  const dmgTaken = {};   // id -> { total, byAttacker:{} }
+  const dmgTaken = {};   // id -> { total, hits, byAttacker:{ id -> { total, hits, crits, byType:{}, sourceDetail:{} } } }
+  const dmgDealtByTarget = {}; // srcId -> { tgtId -> { total, hits, crits, byType:{}, sourceDetail:{} } }
   const healDone = {};   // id -> { total, overhealing, casts, bySpell:{} }
   const healRecv = {};   // id -> { total }
   const encDmg = {};     // encId -> total
@@ -422,7 +445,7 @@ function aggregate(events) {
       const src = ev.src || '??';
       const tgt = ev.tgt || '??';
       if (!dmgDealt[src]) dmgDealt[src] = { total:0, byType:{}, bySource:{}, sourceDetail:{}, hits:0, crits:0, misses:0, resists:0 };
-      if (!dmgTaken[tgt]) dmgTaken[tgt] = { total:0, byAttacker:{} };
+      if (!dmgTaken[tgt]) dmgTaken[tgt] = { total:0, hits:0, byAttacker:{} };
 
       if (ev.type === 'Damage' || ev.type === 'Finale' || ev.type === 'Reflect') {
         const amt = ev.final || 0;
@@ -443,9 +466,30 @@ function aggregate(events) {
         dmgDealt[src].sourceDetail[s].hits++;
         if (ev.crit) dmgDealt[src].sourceDetail[s].crits++;
         dmgTaken[tgt].total += amt;
-        // Per-attacker breakdown for NPC tab
-        if (!dmgTaken[tgt].byAttacker[src]) dmgTaken[tgt].byAttacker[src] = 0;
-        dmgTaken[tgt].byAttacker[src] += amt;
+        dmgTaken[tgt].hits++;
+        // Per-attacker breakdown with full detail
+        if (!dmgTaken[tgt].byAttacker[src]) dmgTaken[tgt].byAttacker[src] = { total:0, hits:0, crits:0, byType:{}, sourceDetail:{} };
+        dmgTaken[tgt].byAttacker[src].total += amt;
+        dmgTaken[tgt].byAttacker[src].hits++;
+        if (ev.crit) dmgTaken[tgt].byAttacker[src].crits++;
+        dmgTaken[tgt].byAttacker[src].byType[dt] = (dmgTaken[tgt].byAttacker[src].byType[dt] || 0) + amt;
+        if (!dmgTaken[tgt].byAttacker[src].sourceDetail[s]) dmgTaken[tgt].byAttacker[src].sourceDetail[s] = { total:0, hits:0, crits:0, dmgType:dt };
+        dmgTaken[tgt].byAttacker[src].sourceDetail[s].total += amt;
+        dmgTaken[tgt].byAttacker[src].sourceDetail[s].hits++;
+        if (ev.crit) dmgTaken[tgt].byAttacker[src].sourceDetail[s].crits++;
+        // Per-target outgoing breakdown
+        if (!isSelfDmg) {
+          if (!dmgDealtByTarget[src]) dmgDealtByTarget[src] = {};
+          if (!dmgDealtByTarget[src][tgt]) dmgDealtByTarget[src][tgt] = { total:0, hits:0, crits:0, byType:{}, sourceDetail:{} };
+          dmgDealtByTarget[src][tgt].total += amt;
+          dmgDealtByTarget[src][tgt].hits++;
+          if (ev.crit) dmgDealtByTarget[src][tgt].crits++;
+          dmgDealtByTarget[src][tgt].byType[dt] = (dmgDealtByTarget[src][tgt].byType[dt] || 0) + amt;
+          if (!dmgDealtByTarget[src][tgt].sourceDetail[s]) dmgDealtByTarget[src][tgt].sourceDetail[s] = { total:0, hits:0, crits:0, dmgType:dt };
+          dmgDealtByTarget[src][tgt].sourceDetail[s].total += amt;
+          dmgDealtByTarget[src][tgt].sourceDetail[s].hits++;
+          if (ev.crit) dmgDealtByTarget[src][tgt].sourceDetail[s].crits++;
+        }
         if (ev.enc > 0 && !isSelfDmg) {
           encDmg[ev.enc] = (encDmg[ev.enc] || 0) + amt;
           if (!encByEntity[ev.enc]) encByEntity[ev.enc] = {};
@@ -487,7 +531,7 @@ function aggregate(events) {
   const sessionMs = lastT > firstT ? (lastT - firstT) : 1;
   const encMs = encTime > 0 ? encTime : sessionMs;
 
-  return { dmgDealt, dmgTaken, healDone, healRecv, encDmg, encByEntity, sessionMs, encMs, firstT, lastT };
+  return { dmgDealt, dmgTaken, dmgDealtByTarget, healDone, healRecv, encDmg, encByEntity, sessionMs, encMs, firstT, lastT };
 }
 
 // ============================================================
@@ -500,6 +544,7 @@ function renderAll(events) {
   renderHealing(agg);
   renderEncounters(agg);
   renderNpcs(agg);
+  renderTargets(agg);
 }
 
 function renderOverview(agg) {
@@ -586,6 +631,9 @@ function renderDamage(agg) {
     html += '<td class=""num ' + dmgClass('Elemental') + '"">' + fmt(d.byType.Elemental || 0) + '</td>';
     html += '<td class=""num"">' + fmt(d.misses) + '</td>';
     html += '<td class=""num"">' + fmt(d.resists) + '</td>';
+    const tkObj = agg.dmgTaken[id];
+    const topAtkEntry = tkObj ? Object.entries(tkObj.byAttacker).sort((a,b) => b[1].total - a[1].total)[0] : null;
+    html += '<td>' + (topAtkEntry ? entityName(topAtkEntry[0]) : '-') + '</td>';
     html += '</tr>';
     // Expandable: by damage type, then by source within each type
     const types = Object.entries(d.byType).sort((a,b) => b[1] - a[1]);
@@ -595,7 +643,7 @@ function renderDamage(agg) {
       html += '<td class=""' + dmgClass(dtName) + '"" style=""font-weight:bold"">' + dtName + '</td>';
       html += '<td></td>';
       html += '<td class=""num"">' + fmt(dtTotal) + ' (' + pct + '%)</td>';
-      html += '<td colspan=""6""></td></tr>';
+      html += '<td colspan=""7""></td></tr>';
       // Sources under this damage type
       const sourcesOfType = Object.entries(d.sourceDetail)
         .filter(([,sd]) => sd.dmgType === dtName)
@@ -609,6 +657,7 @@ function renderDamage(agg) {
         html += '<td></td><td></td><td></td><td></td>';
         html += '<td class=""num"">' + fmt(sd.hits) + ' hits</td>';
         html += '<td class=""num"">' + fmt(sd.crits) + ' crits</td>';
+        html += '<td></td>';
         html += '</tr>';
       }
     }
@@ -778,7 +827,7 @@ function renderNpcs(agg) {
 
     // Find top attacker from per-attacker breakdown
     let topAttacker = '-';
-    const attackers = takenObj ? Object.entries(takenObj.byAttacker).sort((a,b) => b[1]-a[1]) : [];
+    const attackers = takenObj ? Object.entries(takenObj.byAttacker).sort((a,b) => b[1].total-a[1].total) : [];
     if (attackers.length > 0) topAttacker = entityName(attackers[0][0]);
 
     html += '<tr class=""expandable"" data-group=""' + gid + '"">';
@@ -790,7 +839,8 @@ function renderNpcs(agg) {
     html += '<td>' + topAttacker + '</td>';
     html += '</tr>';
     // Expandable: damage taken by attacker
-    for (const [atkId, atkDmg] of attackers) {
+    for (const [atkId, atkObj] of attackers) {
+      const atkDmg = atkObj.total;
       const pct = taken > 0 ? (atkDmg / taken * 100).toFixed(1) : '0.0';
       html += '<tr class=""detail-row"" data-group=""' + gid + '"">';
       html += '<td>' + entityName(atkId) + '</td>';
@@ -802,6 +852,114 @@ function renderNpcs(agg) {
     }
   }
   document.getElementById('npcBody').innerHTML = html;
+}
+
+function targetBreakdown(cgid, data) {
+  let h = '';
+  const total = data.total || 0;
+  const types = Object.entries(data.byType || {}).sort((a,b) => b[1] - a[1]);
+  for (const [dtName, dtTotal] of types) {
+    const pct = total > 0 ? (dtTotal / total * 100).toFixed(1) : '0.0';
+    h += '<tr class=""detail-row"" data-group=""' + cgid + '"">';
+    h += '<td class=""' + dmgClass(dtName) + '"" style=""padding-left:32px;font-weight:bold"">' + dtName + '</td>';
+    h += '<td></td>';
+    h += '<td class=""num"">' + fmt(dtTotal) + ' (' + pct + '%)</td>';
+    h += '<td></td><td></td>';
+    h += '</tr>';
+    const sourcesOfType = Object.entries(data.sourceDetail || {})
+      .filter(([,sd]) => sd.dmgType === dtName)
+      .sort((a,b) => b[1].total - a[1].total);
+    for (const [sName, sd] of sourcesOfType) {
+      const sPct = dtTotal > 0 ? (sd.total / dtTotal * 100).toFixed(1) : '0.0';
+      h += '<tr class=""detail-row"" data-group=""' + cgid + '"">';
+      h += '<td style=""padding-left:56px"">' + sName + '</td>';
+      h += '<td></td>';
+      h += '<td class=""num"">' + fmt(sd.total) + ' (' + sPct + '%)</td>';
+      h += '<td>' + fmt(sd.hits) + ' hits / ' + fmt(sd.crits) + ' crits</td>';
+      h += '<td></td>';
+      h += '</tr>';
+    }
+  }
+  return h;
+}
+
+function renderTargets(agg) {
+  // --- Incoming ---
+  const takenIds = Object.keys(agg.dmgTaken)
+    .filter(isPlayerSide)
+    .sort((a,b) => agg.dmgTaken[b].total - agg.dmgTaken[a].total);
+
+  let html = '';
+  for (let ri = 0; ri < takenIds.length; ri++) {
+    const id = takenIds[ri];
+    const tk = agg.dmgTaken[id];
+    const gid = 'taken-' + ri;
+    const attackers = Object.entries(tk.byAttacker).sort((a,b) => b[1].total - a[1].total);
+    const topAtk = attackers.length > 0 ? entityName(attackers[0][0]) : '-';
+
+    html += '<tr class=""expandable"" data-group=""' + gid + '"">';
+    html += '<td>' + entityName(id) + '</td>';
+    html += '<td>' + entityClass(id) + '</td>';
+    html += '<td class=""num"">' + fmt(tk.total) + '</td>';
+    html += '<td class=""num"">' + fmt(tk.hits) + '</td>';
+    html += '<td>' + topAtk + '</td>';
+    html += '</tr>';
+
+    let ci = 0;
+    for (const [atkId, atkData] of attackers) {
+      const pct = tk.total > 0 ? (atkData.total / tk.total * 100).toFixed(1) : '0.0';
+      const cgid = gid + '-a' + ci++;
+      html += '<tr class=""detail-row expandable"" data-group=""' + gid + '"" data-subgroup=""' + cgid + '"">';
+      html += '<td style=""padding-left:24px"">' + entityName(atkId) + '</td>';
+      html += '<td></td>';
+      html += '<td class=""num"">' + fmt(atkData.total) + ' (' + pct + '%)</td>';
+      html += '<td class=""num"">' + fmt(atkData.hits) + ' hits / ' + fmt(atkData.crits) + ' crits</td>';
+      html += '<td></td>';
+      html += '</tr>';
+      html += targetBreakdown(cgid, atkData);
+    }
+  }
+  document.getElementById('takenBody').innerHTML = html;
+
+  // --- Outgoing ---
+  const outIds = Object.keys(agg.dmgDealtByTarget)
+    .filter(isPlayerSide)
+    .sort((a,b) => {
+      const da = agg.dmgDealt[a] ? agg.dmgDealt[a].total : 0;
+      const db = agg.dmgDealt[b] ? agg.dmgDealt[b].total : 0;
+      return db - da;
+    });
+
+  let outHtml = '';
+  for (let ri = 0; ri < outIds.length; ri++) {
+    const id = outIds[ri];
+    const targets = Object.entries(agg.dmgDealtByTarget[id]).sort((a,b) => b[1].total - a[1].total);
+    const totalDealt = agg.dmgDealt[id] ? agg.dmgDealt[id].total : 0;
+    const gid = 'out-' + ri;
+
+    outHtml += '<tr class=""expandable"" data-group=""' + gid + '"">';
+    outHtml += '<td>' + entityName(id) + '</td>';
+    outHtml += '<td>' + entityClass(id) + '</td>';
+    outHtml += '<td class=""num"">' + fmt(totalDealt) + '</td>';
+    outHtml += '<td>' + targets.length + ' targets</td>';
+    outHtml += '<td></td>';
+    outHtml += '</tr>';
+
+    let ci = 0;
+    for (const [tgtId, tgtData] of targets) {
+      const pct = totalDealt > 0 ? (tgtData.total / totalDealt * 100).toFixed(1) : '0.0';
+      const cgid = gid + '-t' + ci++;
+      outHtml += '<tr class=""detail-row expandable"" data-group=""' + gid + '"" data-subgroup=""' + cgid + '"">';
+      outHtml += '<td style=""padding-left:24px"">' + entityName(tgtId) + '</td>';
+      outHtml += '<td></td>';
+      outHtml += '<td class=""num"">' + fmt(tgtData.total) + ' (' + pct + '%)</td>';
+      outHtml += '<td>' + fmt(tgtData.hits) + ' hits / ' + fmt(tgtData.crits) + ' crits</td>';
+      outHtml += '<td></td>';
+      outHtml += '</tr>';
+      outHtml += targetBreakdown(cgid, tgtData);
+    }
+  }
+  document.getElementById('outgoingBody').innerHTML = outHtml;
 }
 
 // ============================================================
