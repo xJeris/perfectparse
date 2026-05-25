@@ -117,7 +117,7 @@ PerfectParseReport/          Standalone CLI report generator (EXE)
 ## Known Issues
 
 - **"Spell:Unknown" in damage sources:** Most NPC special abilities (AoE ticks, breath attacks, boss mechanics) are now identified by name via dedicated patches. A few undiscovered NPC scripts or coroutine-based mechanics may still show as "Spell:Unknown". If you encounter one, please report it.
-- **"??" entity in damage sources:** Bleed damage ticks in Erenshor do not carry a reference to the original attacker — the game passes `null` as the attacker for all bleed ticks. These show up as "??" in the damage breakdowns. This is a game-side limitation, not a mod bug.
+- **Bleed damage attribution:** The game passes `null` as the attacker for all bleed ticks. PerfectParse recovers the original caster from the target's status effect data, correctly attributing bleed damage even with multiple concurrent bleed sources.
 
 ## License
 

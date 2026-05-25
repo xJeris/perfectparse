@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -14,6 +15,11 @@ namespace ErenshorCombatParser.Patches
     public static class DamagePatches
     {
         private static readonly ManualLogSource Log = Logger.CreateLogSource("PerfectParse.Damage");
+
+        // Bleed owner queue: built once per target per frame tick, consumed in order
+        private static readonly Queue<Character> _bleedOwnerQueue = new Queue<Character>();
+        private static int _bleedQueueFrame = -1;
+        private static Character _bleedQueueTarget;
 
         public static void Apply(Harmony harmony)
         {
@@ -47,6 +53,8 @@ namespace ErenshorCombatParser.Patches
             if (bleedDmg != null)
             {
                 harmony.Patch(bleedDmg,
+                    prefix: new HarmonyMethod(self.GetMethod("BleedDamageMe_Prefix",
+                        BindingFlags.Static | BindingFlags.NonPublic)),
                     postfix: new HarmonyMethod(self.GetMethod("BleedDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
@@ -172,6 +180,43 @@ namespace ErenshorCombatParser.Patches
             catch (Exception ex) { Log.LogError("MagicDamageMe: " + ex); }
         }
 
+        static void BleedDamageMe_Prefix(Character __instance, Character _attacker)
+        {
+            try
+            {
+                if (_attacker != null) return;
+
+                // Build the owner queue once per target per frame.
+                // TickEffects iterates slots 0-29 and calls BleedDamageMe for each
+                // active bleed, so the queue order matches the call order.
+                int frame = UnityEngine.Time.frameCount;
+                if (frame != _bleedQueueFrame || _bleedQueueTarget != __instance)
+                {
+                    _bleedOwnerQueue.Clear();
+                    _bleedQueueFrame = frame;
+                    _bleedQueueTarget = __instance;
+
+                    var stats = __instance.MyStats;
+                    if (stats != null)
+                    {
+                        var effects = stats.StatusEffects;
+                        if (effects != null)
+                        {
+                            for (int i = 0; i < effects.Length; i++)
+                            {
+                                if (effects[i] != null && effects[i].Effect != null
+                                    && effects[i].Effect.BleedDamagePercent > 0)
+                                {
+                                    _bleedOwnerQueue.Enqueue(effects[i].Owner);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception) { }
+        }
+
         static void BleedDamageMe_Postfix(
             int __result,
             Character __instance,
@@ -182,13 +227,19 @@ namespace ErenshorCombatParser.Patches
             {
                 if (__result <= 0) return;
 
-                string source = CombatContext.Get(_attacker) ?? "Bleed";
+                // Use the actual attacker if provided, otherwise dequeue the
+                // next bleed owner (matched by slot order in TickEffects)
+                var effectiveAttacker = _attacker;
+                if (effectiveAttacker == null && _bleedOwnerQueue.Count > 0)
+                    effectiveAttacker = _bleedOwnerQueue.Dequeue();
+
+                string source = CombatContext.Get(effectiveAttacker) ?? "Bleed";
 
                 CombatEventBus.EmitDamage(new CombatEvent
                 {
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     Type = "Damage",
-                    SourceId = EntityRegistry.ResolveId(_attacker),
+                    SourceId = EntityRegistry.ResolveId(effectiveAttacker),
                     TargetId = EntityRegistry.ResolveId(__instance),
                     DamageType = "Physical",
                     RawAmount = _incdmg,
