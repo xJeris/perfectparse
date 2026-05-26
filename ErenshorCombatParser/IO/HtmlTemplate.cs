@@ -288,7 +288,7 @@ tr:hover { background: var(--surface); }
       <th>Character</th><th>Class</th>
       <th class=""num"">Total Healed</th><th class=""num"">Heals Cast</th>
       <th class=""num"">HPS (Session)</th><th class=""num"">HPS (Encounter)</th>
-      <th class=""num"">Overhealing</th><th>Top Spell</th>
+      <th class=""num"">Overhealing</th><th class=""num"">Reso Casts</th><th class=""num"">Reso Healing</th><th>Top Spell</th>
     </tr></thead>
     <tbody id=""healBody""></tbody>
   </table>
@@ -509,21 +509,34 @@ function aggregate(events) {
         dmgDealt[src].resists++;
       }
     } else if (ev.ev === 'heal') {
+      // Skip mana restores from HP healing totals
+      if (ev.mana) continue;
       const src = ev.src || '??';
       const tgt = ev.tgt || '??';
-      if (!healDone[src]) healDone[src] = { total:0, overhealing:0, casts:0, bySpell:{}, spellDetail:{} };
+      if (!healDone[src]) healDone[src] = { total:0, overhealing:0, casts:0, resoCasts:0, resoHealing:0, resoOverhealing:0, bySpell:{}, spellDetail:{} };
       if (!healRecv[tgt]) healRecv[tgt] = { total:0 };
       const amt = ev.actual || 0;
       const raw = ev.raw || 0;
+      const isReso = !!ev.reso;
       healDone[src].total += amt;
       healDone[src].overhealing += (raw - amt);
       healDone[src].casts++;
+      if (isReso) {
+        healDone[src].resoCasts++;
+        healDone[src].resoHealing += amt;
+        healDone[src].resoOverhealing += (raw - amt);
+      }
       const sp = ev.spell || 'Unknown';
       healDone[src].bySpell[sp] = (healDone[src].bySpell[sp] || 0) + amt;
-      if (!healDone[src].spellDetail[sp]) healDone[src].spellDetail[sp] = { total:0, casts:0, overhealing:0 };
+      if (!healDone[src].spellDetail[sp]) healDone[src].spellDetail[sp] = { total:0, casts:0, overhealing:0, resoCasts:0, resoHealing:0, resoOverhealing:0 };
       healDone[src].spellDetail[sp].total += amt;
       healDone[src].spellDetail[sp].casts++;
       healDone[src].spellDetail[sp].overhealing += (raw - amt);
+      if (isReso) {
+        healDone[src].spellDetail[sp].resoCasts++;
+        healDone[src].spellDetail[sp].resoHealing += amt;
+        healDone[src].spellDetail[sp].resoOverhealing += (raw - amt);
+      }
       healRecv[tgt].total += amt;
     }
   }
@@ -685,20 +698,26 @@ function renderHealing(agg) {
     html += '<td class=""num"">' + fmt(h.casts) + '</td>';
     html += '<td class=""num"">' + fmtDps(sessionHps) + '</td>';
     html += '<td class=""num"">' + fmtDps(encHps) + '</td>';
-    html += '<td class=""num"">' + fmt(h.overhealing) + '</td>';
+    html += '<td class=""num"">' + fmt(h.overhealing) + (h.resoOverhealing > 0 ? ' <span style=""color:var(--accent)"">(' + fmt(h.resoOverhealing) + ' reso)</span>' : '') + '</td>';
+    html += '<td class=""num"">' + fmt(h.resoCasts) + '</td>';
+    html += '<td class=""num dmg-heal"">' + fmt(h.resoHealing) + '</td>';
     html += '<td>' + (topSpell ? topSpell[0] : '-') + '</td>';
     html += '</tr>';
     // Expandable: by spell
     const spells = Object.entries(h.spellDetail).sort((a,b) => b[1].total - a[1].total);
     for (const [spName, sp] of spells) {
       const pct = h.total > 0 ? (sp.total / h.total * 100).toFixed(1) : '0.0';
+      const resoInfo = sp.resoCasts > 0 ? fmt(sp.resoCasts) : '';
+      const resoHealInfo = sp.resoCasts > 0 ? fmt(sp.resoHealing) : '';
       html += '<tr class=""detail-row"" data-group=""' + gid + '"">';
       html += '<td class=""dmg-heal"">' + spName + '</td>';
       html += '<td></td>';
       html += '<td class=""num"">' + fmt(sp.total) + ' (' + pct + '%)</td>';
       html += '<td class=""num"">' + fmt(sp.casts) + '</td>';
       html += '<td></td><td></td>';
-      html += '<td class=""num"">' + fmt(sp.overhealing) + '</td>';
+      html += '<td class=""num"">' + fmt(sp.overhealing) + (sp.resoOverhealing > 0 ? ' <span style=""color:var(--accent)"">(' + fmt(sp.resoOverhealing) + ' reso)</span>' : '') + '</td>';
+      html += '<td class=""num"">' + resoInfo + '</td>';
+      html += '<td class=""num dmg-heal"">' + resoHealInfo + '</td>';
       html += '<td></td>';
       html += '</tr>';
     }

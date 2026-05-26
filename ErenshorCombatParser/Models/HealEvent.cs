@@ -14,6 +14,7 @@ namespace ErenshorCombatParser.Models
         public int ActualAmount;
         public bool Critical;
         public bool IsMana;
+        public bool IsResonance;
         public int EncounterId;
 
         public string ToJsonLine()
@@ -31,6 +32,7 @@ namespace ErenshorCombatParser.Models
             sb.Append(",\"actual\":").Append(ActualAmount);
             if (Critical) sb.Append(",\"crit\":true");
             if (IsMana) sb.Append(",\"mana\":true");
+            if (IsResonance) sb.Append(",\"reso\":true");
             if (EncounterId > 0) sb.Append(",\"enc\":").Append(EncounterId);
             sb.Append('}');
             return sb.ToString();

@@ -26,6 +26,42 @@ namespace ErenshorCombatParser.Patches
         private static int _bleedQueueFrame = -1;
         private static Character _bleedQueueTarget;
 
+        // Persistent map: (target, bleed Spell asset, owner) → originating skill name.
+        // Populated by AddStatusEffect postfix using _pendingBleedSkill context.
+        // Consumed by BleedDamageMe to attribute bleed ticks back to the originating
+        // skill (e.g. "Arterial Razor").
+        private struct BleedKey : IEquatable<BleedKey>
+        {
+            public Character Target;
+            public Spell Effect;
+            public Character Owner;
+            public bool Equals(BleedKey other) =>
+                ReferenceEquals(Target, other.Target) &&
+                ReferenceEquals(Effect, other.Effect) &&
+                ReferenceEquals(Owner, other.Owner);
+            public override bool Equals(object obj) => obj is BleedKey k && Equals(k);
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int h = Target != null ? Target.GetHashCode() : 0;
+                    h = h * 397 ^ (Effect != null ? Effect.GetHashCode() : 0);
+                    h = h * 397 ^ (Owner != null ? Owner.GetHashCode() : 0);
+                    return h;
+                }
+            }
+        }
+        private static readonly Dictionary<BleedKey, string> _bleedSkillMap = new Dictionary<BleedKey, string>();
+
+        // Per-caster pending bleed skill name. Set in DoSkill prefix when the skill
+        // has a bleed EffectToApply. Consumed by AddStatusEffect postfix.
+        // This survives the CombatContext overwrite from ResolveSpell.
+        private static readonly Dictionary<Character, string> _pendingBleedSkill = new Dictionary<Character, string>();
+
+        // Cleanup tracking for _bleedSkillMap
+        private static int _bleedMapCleanupFrame = -1;
+        private static readonly List<BleedKey> _staleBleedKeys = new List<BleedKey>();
+
         public static void Apply(Harmony harmony)
         {
             var self = typeof(DamagePatches);
@@ -109,6 +145,29 @@ namespace ErenshorCombatParser.Patches
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
             else Log.LogError("Could not find Character.EnvironmentalDamageMe");
+
+            // AddStatusEffect — capture originating skill name for bleed effects.
+            // 4-param overload (called by UseSkill.DoSkill with _specificCaster)
+            var addSE4 = typeof(Stats).GetMethod("AddStatusEffect",
+                BindingFlags.Public | BindingFlags.Instance,
+                null, new[] { typeof(Spell), typeof(bool), typeof(int), typeof(Character) }, null);
+            if (addSE4 != null)
+            {
+                harmony.Patch(addSE4,
+                    postfix: new HarmonyMethod(self.GetMethod("AddStatusEffect4_Postfix",
+                        BindingFlags.Static | BindingFlags.NonPublic)));
+            }
+
+            // 5-param overload (with explicit duration)
+            var addSE5 = typeof(Stats).GetMethod("AddStatusEffect",
+                BindingFlags.Public | BindingFlags.Instance,
+                null, new[] { typeof(Spell), typeof(bool), typeof(int), typeof(Character), typeof(float) }, null);
+            if (addSE5 != null)
+            {
+                harmony.Patch(addSE5,
+                    postfix: new HarmonyMethod(self.GetMethod("AddStatusEffect5_Postfix",
+                        BindingFlags.Static | BindingFlags.NonPublic)));
+            }
         }
 
         // ============================================================
@@ -185,6 +244,70 @@ namespace ErenshorCombatParser.Patches
             catch (Exception ex) { Log.LogError("MagicDamageMe: " + ex); }
         }
 
+        // ============================================================
+        // AddStatusEffect postfixes — capture originating skill for bleeds
+        // ============================================================
+
+        /// <summary>
+        /// Called from ContextPatches when a skill that applies a bleed is used.
+        /// Stashes the skill name so AddStatusEffect postfix can pick it up.
+        /// </summary>
+        public static void SetPendingBleedSkill(Character caster, string skillName)
+        {
+            if (caster != null && skillName != null)
+            {
+                _pendingBleedSkill[caster] = skillName;
+            }
+        }
+
+        public static bool HasPendingBleedSkill(Character caster)
+        {
+            return caster != null && _pendingBleedSkill.ContainsKey(caster);
+        }
+
+        static void RecordBleedSkill(Stats __instance, Spell spell, Character caster)
+        {
+            try
+            {
+                if (spell == null) return;
+                if (caster == null) return;
+
+                string pendingSkill;
+                bool hasPending = _pendingBleedSkill.TryGetValue(caster, out pendingSkill);
+
+                if (spell.BleedDamagePercent <= 0) return;
+                if (!hasPending) return;
+                _pendingBleedSkill.Remove(caster);
+
+                var target = __instance.Myself;
+                if (target == null) return;
+
+                // Strip CombatContext prefix (e.g. "Skill:Arterial Razor" → "Arterial Razor")
+                string displayName = pendingSkill;
+                int colonIdx = displayName.IndexOf(':');
+                if (colonIdx >= 0)
+                    displayName = displayName.Substring(colonIdx + 1);
+
+                var key = new BleedKey { Target = target, Effect = spell, Owner = caster };
+                _bleedSkillMap[key] = displayName;
+            }
+            catch (Exception ex) { Log.LogError("[BleedRecord] " + ex); }
+        }
+
+        static void AddStatusEffect4_Postfix(Stats __instance, Spell spell, Character _specificCaster)
+        {
+            RecordBleedSkill(__instance, spell, _specificCaster);
+        }
+
+        static void AddStatusEffect5_Postfix(Stats __instance, Spell spell, Character _specificCaster)
+        {
+            RecordBleedSkill(__instance, spell, _specificCaster);
+        }
+
+        // ============================================================
+        // BleedDamageMe prefix/postfix
+        // ============================================================
+
         static void BleedDamageMe_Prefix(Character __instance, Character _attacker)
         {
             try
@@ -195,6 +318,21 @@ namespace ErenshorCombatParser.Patches
                 // TickEffects iterates slots 0-29 and calls BleedDamageMe for each
                 // active bleed, so the queue order matches the call order.
                 int frame = UnityEngine.Time.frameCount;
+                // Periodically prune stale entries from _bleedSkillMap (at most once per frame)
+                if (frame != _bleedMapCleanupFrame && _bleedSkillMap.Count > 16)
+                {
+                    _bleedMapCleanupFrame = frame;
+                    _staleBleedKeys.Clear();
+                    foreach (var kvp in _bleedSkillMap)
+                    {
+                        if (ReferenceEquals(kvp.Key.Target, null) || !kvp.Key.Target
+                            || ReferenceEquals(kvp.Key.Owner, null) || !kvp.Key.Owner)
+                            _staleBleedKeys.Add(kvp.Key);
+                    }
+                    for (int j = 0; j < _staleBleedKeys.Count; j++)
+                        _bleedSkillMap.Remove(_staleBleedKeys[j]);
+                }
+
                 if (frame != _bleedQueueFrame || _bleedQueueTarget != __instance)
                 {
                     _bleedQueue.Clear();
@@ -212,10 +350,19 @@ namespace ErenshorCombatParser.Patches
                                 if (effects[i] != null && effects[i].Effect != null
                                     && effects[i].Effect.BleedDamagePercent > 0)
                                 {
+                                    // Look up the originating skill name from our map;
+                                    // falls back to the bleed spell's own SpellName if
+                                    // we didn't capture the skill at application time.
+                                    var spell = effects[i].Effect;
+                                    var owner = effects[i].Owner;
+                                    string skillName = null;
+                                    var key = new BleedKey { Target = __instance, Effect = spell, Owner = owner };
+                                    _bleedSkillMap.TryGetValue(key, out skillName);
+
                                     _bleedQueue.Enqueue(new BleedInfo
                                     {
-                                        Owner = effects[i].Owner,
-                                        SpellName = effects[i].Effect.SpellName
+                                        Owner = owner,
+                                        SpellName = skillName ?? spell.SpellName
                                     });
                                 }
                             }

@@ -15,6 +15,26 @@ namespace ErenshorCombatParser.Patches
     [HarmonyPatch]
     public static class ContextPatches
     {
+        /// <summary>
+        /// Returns true if the skill applies a bleed effect through any path:
+        /// direct EffectToApply, CastOnTarget that IS a bleed, or CastOnTarget
+        /// with a StatusEffectToApply that is a bleed.
+        /// </summary>
+        private static bool SkillAppliesBleed(Skill skill)
+        {
+            if (skill.EffectToApply != null && skill.EffectToApply.BleedDamagePercent > 0)
+                return true;
+            var cast = skill.CastOnTarget;
+            if (cast != null)
+            {
+                if (cast.BleedDamagePercent > 0)
+                    return true;
+                if (cast.StatusEffectToApply != null && cast.StatusEffectToApply.BleedDamagePercent > 0)
+                    return true;
+            }
+            return false;
+        }
+
         // ============================================================
         // Player melee attacks
         // ============================================================
@@ -73,7 +93,13 @@ namespace ErenshorCombatParser.Patches
                 {
                     var ch = __instance.GetComponent<Character>();
                     if (ch != null)
+                    {
                         CombatContext.Set(ch, "Skill:" + (_skill.SkillName ?? "Unknown"));
+                        // If this skill applies a bleed (directly or via CastOnTarget),
+                        // stash the skill name before ResolveSpell overwrites CombatContext
+                        if (SkillAppliesBleed(_skill))
+                            DamagePatches.SetPendingBleedSkill(ch, _skill.SkillName ?? "Unknown");
+                    }
                 }
             }
             catch (Exception) { }
@@ -89,7 +115,11 @@ namespace ErenshorCombatParser.Patches
                 {
                     var ch = __instance.GetComponent<Character>();
                     if (ch != null)
+                    {
                         CombatContext.Set(ch, "Skill:" + (_skill.SkillName ?? "Unknown"));
+                        if (SkillAppliesBleed(_skill))
+                            DamagePatches.SetPendingBleedSkill(ch, _skill.SkillName ?? "Unknown");
+                    }
                 }
             }
             catch (Exception) { }
@@ -110,7 +140,56 @@ namespace ErenshorCombatParser.Patches
                     var spellSource = Traverse.Create(__instance).Field("SpellSource").GetValue<CastSpell>();
                     var ch = spellSource?.MyChar;
                     if (ch != null)
-                        CombatContext.Set(ch, "Spell:" + (__instance.spell.SpellName ?? "Unknown"));
+                    {
+                        var spell = __instance.spell;
+                        CombatContext.Set(ch, "Spell:" + (spell.SpellName ?? "Unknown"));
+                        // If this spell applies a bleed via StatusEffectToApply,
+                        // stash the parent spell name for bleed attribution.
+                        // Don't overwrite if DoSkill already set the skill name.
+                        var se = spell.StatusEffectToApply;
+                        if (se != null && se.BleedDamagePercent > 0
+                            && !DamagePatches.HasPendingBleedSkill(ch))
+                            DamagePatches.SetPendingBleedSkill(ch, spell.SpellName ?? "Unknown");
+                    }
+                }
+            }
+            catch (Exception) { }
+        }
+
+        // ============================================================
+        // Spell-from-proc — captures bleed context before ResolveSpell
+        // overwrites CombatContext. When a bleed spell is cast via proc
+        // (weapon proc, skill proc, AddProc), CombatContext still holds
+        // the Skill:/Melee context from the triggering attack.
+        // ============================================================
+        [HarmonyPatch(typeof(CastSpell), "StartSpellFromProc")]
+        [HarmonyPrefix]
+        static void StartSpellFromProc_Prefix(CastSpell __instance, Spell _spell)
+        {
+            try
+            {
+                if (_spell != null)
+                {
+                    bool isBleed = _spell.BleedDamagePercent > 0
+                        || (_spell.StatusEffectToApply != null
+                            && _spell.StatusEffectToApply.BleedDamagePercent > 0);
+                    if (isBleed)
+                    {
+                        var ch = __instance.MyChar;
+                        if (ch != null)
+                        {
+                            // If DoSkill already set a pending bleed skill name
+                            // (e.g. "Arterial Razor"), don't overwrite it with the
+                            // generic CombatContext (which may be "Bow" by now).
+                            // Only set from CombatContext if there's no pending entry.
+                            if (!DamagePatches.HasPendingBleedSkill(ch))
+                            {
+                                string ctx = CombatContext.Get(ch);
+                                if (ctx != null)
+                                    DamagePatches.SetPendingBleedSkill(ch, ctx);
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception) { }

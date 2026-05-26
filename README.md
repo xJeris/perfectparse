@@ -117,7 +117,7 @@ PerfectParseReport/          Standalone CLI report generator (EXE)
 ## Known Issues
 
 - **"Spell:Unknown" in damage sources:** Most NPC special abilities (AoE ticks, breath attacks, boss mechanics) are now identified by name via dedicated patches. A few undiscovered NPC scripts or coroutine-based mechanics may still show as "Spell:Unknown". If you encounter one, please report it.
-- **Bleed damage attribution:** The game passes `null` as the attacker for all bleed ticks. PerfectParse recovers the original caster from the target's status effect data, correctly attributing bleed damage even with multiple concurrent bleed sources.
+- **Bleed damage attribution:** The game passes `null` as the attacker for all bleed ticks. PerfectParse recovers the original caster from the target's status effect data, correctly attributing bleed damage even with multiple concurrent bleed sources. Bleed ticks now show the originating skill/spell name (e.g., `Bleed:Razor Tipped Arrow`) rather than generic "Bleed".
 
 ## License
 

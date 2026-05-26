@@ -36,6 +36,9 @@ namespace ErenshorCombatParser.UI
             public long Total;
             public long Overhealing;
             public int Casts;
+            public int ResoCasts;
+            public long ResoHealing;
+            public long ResoOverhealing;
             public Dictionary<string, SpellDetail> BySpell = new Dictionary<string, SpellDetail>();
         }
 
@@ -44,6 +47,9 @@ namespace ErenshorCombatParser.UI
             public long Total;
             public int Casts;
             public long Overhealing;
+            public int ResoCasts;
+            public long ResoHealing;
+            public long ResoOverhealing;
         }
 
         private class EntityTaken
@@ -294,6 +300,9 @@ namespace ErenshorCombatParser.UI
 
         public void OnHealEvent(HealEvent evt)
         {
+            // Skip mana restores from HP healing totals
+            if (evt.IsMana) return;
+
             string src = evt.SourceId ?? "??";
             if (!_healDone.TryGetValue(src, out var h))
             {
@@ -309,6 +318,12 @@ namespace ErenshorCombatParser.UI
             h.Total += amt;
             h.Overhealing += (raw - amt);
             h.Casts++;
+            if (evt.IsResonance)
+            {
+                h.ResoCasts++;
+                h.ResoHealing += amt;
+                h.ResoOverhealing += (raw - amt);
+            }
 
             string spell = evt.SpellName ?? "Unknown";
             if (!h.BySpell.TryGetValue(spell, out var sp))
@@ -319,6 +334,12 @@ namespace ErenshorCombatParser.UI
             sp.Total += amt;
             sp.Casts++;
             sp.Overhealing += (raw - amt);
+            if (evt.IsResonance)
+            {
+                sp.ResoCasts++;
+                sp.ResoHealing += amt;
+                sp.ResoOverhealing += (raw - amt);
+            }
         }
 
         public void OnEntityEvent(EntitySnapshot snapshot)
@@ -849,7 +870,10 @@ namespace ErenshorCombatParser.UI
             GUI.color = savedColor;
             GUILayout.Label("Casts", _headerStyle, GUILayout.Width(50));
             GUILayout.Label("HPS", _headerStyle, GUILayout.Width(60));
-            GUILayout.Label("Overheal", _headerStyle, GUILayout.Width(70));
+            GUILayout.Label("Overheal", _headerStyle, GUILayout.Width(100));
+            GUI.color = ColAccent;
+            GUILayout.Label("Reso", _headerStyle, GUILayout.Width(45));
+            GUI.color = savedColor;
             GUILayout.Label("Top Spell", _headerStyle, GUILayout.Width(100));
             GUILayout.EndHorizontal();
 
@@ -879,9 +903,16 @@ namespace ErenshorCombatParser.UI
                 GUI.color = ColHeal;
                 GUILayout.Label(FmtNum(h.Total), _rowStyle, GUILayout.Width(70));
                 GUI.color = savedColor;
+                string ohLabel = FmtNum(h.Overhealing);
+                if (h.ResoOverhealing > 0)
+                    ohLabel += " (" + FmtNum(h.ResoOverhealing) + "r)";
+
                 GUILayout.Label(h.Casts.ToString(), _rowStyle, GUILayout.Width(50));
                 GUILayout.Label(FmtDps(hps), _rowStyle, GUILayout.Width(60));
-                GUILayout.Label(FmtNum(h.Overhealing), _rowStyle, GUILayout.Width(70));
+                GUILayout.Label(ohLabel, _rowStyle, GUILayout.Width(100));
+                GUI.color = ColAccent;
+                GUILayout.Label(h.ResoCasts.ToString(), _rowStyle, GUILayout.Width(45));
+                GUI.color = savedColor;
                 GUILayout.Label(topSpell, _rowStyle, GUILayout.Width(100));
                 GUILayout.EndHorizontal();
 
@@ -892,6 +923,12 @@ namespace ErenshorCombatParser.UI
                     {
                         var sp = spKvp.Value;
                         string pct = h.Total > 0 ? (sp.Total * 100.0 / h.Total).ToString("F1") + "%" : "0.0%";
+                        string spOhLabel = FmtNum(sp.Overhealing) + " oh";
+                        if (sp.ResoOverhealing > 0)
+                            spOhLabel += " (" + FmtNum(sp.ResoOverhealing) + "r)";
+                        string resoLabel = sp.ResoCasts > 0
+                            ? sp.ResoCasts + "r / " + FmtNum(sp.ResoHealing)
+                            : "";
                         GUILayout.BeginHorizontal();
                         GUILayout.Space(28);
                         GUI.color = ColHeal;
@@ -899,7 +936,13 @@ namespace ErenshorCombatParser.UI
                         GUI.color = savedColor;
                         GUILayout.Label(FmtNum(sp.Total) + " (" + pct + ")", _rowStyle, GUILayout.Width(100));
                         GUILayout.Label(sp.Casts + " casts", _rowStyle, GUILayout.Width(60));
-                        GUILayout.Label(FmtNum(sp.Overhealing) + " oh", _rowStyle, GUILayout.Width(70));
+                        GUILayout.Label(spOhLabel, _rowStyle, GUILayout.Width(100));
+                        if (resoLabel.Length > 0)
+                        {
+                            GUI.color = ColAccent;
+                            GUILayout.Label(resoLabel, _rowStyle, GUILayout.Width(100));
+                            GUI.color = savedColor;
+                        }
                         GUILayout.EndHorizontal();
                     }
                 }

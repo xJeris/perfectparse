@@ -16,6 +16,9 @@ namespace ErenshorCombatParser.Patches
     {
         private static readonly ManualLogSource Log = Logger.CreateLogSource("PerfectParse.Heal");
 
+        // Cached reflection accessor for SpellVessel.resonating (private field)
+        private static FieldInfo _resonatingField;
+
         public static void Apply(Harmony harmony)
         {
             var self = typeof(HealPatches);
@@ -88,6 +91,58 @@ namespace ErenshorCombatParser.Patches
                 }
             }
             catch (Exception ex) { Log.LogError("TickEffects patch failed: " + ex); }
+
+            // ============================================================
+            // SpellVessel.ResolveSpell — resonance context tracking
+            // ============================================================
+            try
+            {
+                var svType = typeof(SpellVessel);
+                _resonatingField = svType.GetField("resonating",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+
+                if (_resonatingField != null)
+                {
+                    var resolveSpell = svType.GetMethod("ResolveSpell",
+                        BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (resolveSpell != null)
+                    {
+                        harmony.Patch(resolveSpell,
+                            prefix: new HarmonyMethod(self.GetMethod(nameof(ResolveSpell_Prefix),
+                                BindingFlags.Static | BindingFlags.NonPublic)),
+                            postfix: new HarmonyMethod(self.GetMethod(nameof(ResolveSpell_Postfix),
+                                BindingFlags.Static | BindingFlags.NonPublic)));
+                    }
+                    else
+                    {
+                        Log.LogWarning("SpellVessel.ResolveSpell NOT FOUND — resonance tracking disabled");
+                    }
+                }
+                else
+                {
+                    Log.LogWarning("SpellVessel.resonating field NOT FOUND — resonance tracking disabled");
+                }
+            }
+            catch (Exception ex) { Log.LogWarning("ResolveSpell resonance patch failed: " + ex.Message); }
+        }
+
+        // ============================================================
+        // SpellVessel.ResolveSpell — resonance context
+        // ============================================================
+
+        static void ResolveSpell_Prefix(SpellVessel __instance)
+        {
+            try
+            {
+                if (_resonatingField != null)
+                    ResonanceContext.IsResonance = (bool)_resonatingField.GetValue(__instance);
+            }
+            catch (Exception) { }
+        }
+
+        static void ResolveSpell_Postfix()
+        {
+            ResonanceContext.IsResonance = false;
         }
 
         // ============================================================
@@ -117,7 +172,8 @@ namespace ErenshorCombatParser.Patches
                     RawAmount = _amt,
                     ActualAmount = __result,
                     Critical = _isCrit,
-                    IsMana = _isMana
+                    IsMana = _isMana,
+                    IsResonance = ResonanceContext.IsResonance
                 });
             }
             catch (Exception ex) { Log.LogError("HealMe_Full error: " + ex); }
@@ -149,15 +205,19 @@ namespace ErenshorCombatParser.Patches
                 int actualHealed = __instance.CurrentHP - preHP;
                 if (actualHealed <= 0) return; // no healing occurred
 
+                // HealMe(int) is a self-heal (lifesteal, lifetap, regen, etc.)
+                // so source = target
+                string entityId = __instance.Myself != null
+                    ? EntityRegistry.ResolveId(__instance.Myself)
+                    : null;
+
                 CombatEventBus.EmitHeal(new HealEvent
                 {
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     Type = "HealSimple",
-                    SourceId = null,
-                    TargetId = __instance.Myself != null
-                        ? EntityRegistry.ResolveId(__instance.Myself)
-                        : null,
-                    SpellName = null,
+                    SourceId = entityId,
+                    TargetId = entityId,
+                    SpellName = "Self Heal",
                     RawAmount = _amt,
                     ActualAmount = actualHealed,
                     Critical = false,
@@ -194,15 +254,19 @@ namespace ErenshorCombatParser.Patches
 
                 if (delta > 0)
                 {
+                    // HoT ticks don't carry caster info; attribute to the
+                    // entity being healed so it shows up in the healing tab
+                    string entityId = __instance.Myself != null
+                        ? EntityRegistry.ResolveId(__instance.Myself)
+                        : null;
+
                     CombatEventBus.EmitHeal(new HealEvent
                     {
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                         Type = "HoT",
-                        SourceId = null,
-                        TargetId = __instance.Myself != null
-                            ? EntityRegistry.ResolveId(__instance.Myself)
-                            : null,
-                        SpellName = null,
+                        SourceId = entityId,
+                        TargetId = entityId,
+                        SpellName = "HoT",
                         RawAmount = delta,
                         ActualAmount = delta,
                         Critical = false,
