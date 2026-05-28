@@ -160,6 +160,10 @@ namespace ErenshorCombatParser.Patches
         {
             try
             {
+                // Skip 0-amount heals — these are HoT-only spells (e.g. Group Regrowth)
+                // where the direct heal is 0 and actual healing comes via TickEffects.
+                if (__result <= 0 && !_isMana) return;
+
                 CombatEventBus.EmitHeal(new HealEvent
                 {
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -228,14 +232,81 @@ namespace ErenshorCombatParser.Patches
         }
 
         // ============================================================
-        // Stats.TickEffects — HoT tracking
+        // Stats.TickEffects — per-slot HoT tracking
         // ============================================================
+
+        private struct HoTInfo
+        {
+            public string SpellName;
+            public Character Owner; // deferred — only resolved if healing occurs
+            public int ExpectedAmount;
+        }
+
         private static readonly Dictionary<int, int> _preTickHP = new Dictionary<int, int>();
+        private static readonly Dictionary<int, List<HoTInfo>> _activeHoTs = new Dictionary<int, List<HoTInfo>>();
+
         static void TickEffects_Prefix(Stats __instance)
         {
             try
             {
-                _preTickHP[__instance.GetInstanceID()] = __instance.CurrentHP;
+                int id = __instance.GetInstanceID();
+                _preTickHP[id] = __instance.CurrentHP;
+
+                // Scan all 30 status effect slots for active HoTs, mirroring the
+                // game's TickEffects condition (Stats.cs line 1540):
+                //   TargetHealing > 0 && Duration > 0 && DamageType == Physical
+                //   && (CombatStance == null || !CombatStance.StopRegen)
+                bool regenBlocked = __instance.CombatStance != null
+                    && __instance.CombatStance.StopRegen;
+
+                List<HoTInfo> hots = null;
+
+                if (!regenBlocked)
+                {
+                    for (int i = 0; i < 30; i++)
+                    {
+                        var slot = __instance.StatusEffects[i];
+                        if (slot == null || slot.Effect == null) continue;
+
+                        var effect = slot.Effect;
+                        if (effect.TargetHealing <= 0) continue;
+                        if (slot.Duration <= 0f) continue;
+                        if (effect.MyDamageType != GameData.DamageType.Physical) continue;
+
+                        // Skip equipment passive regen (WornEffect) — not a cast spell
+                        if (effect.WornEffect) continue;
+
+                        // Check for destroyed Unity objects before accessing properties
+                        var owner = slot.Owner;
+                        bool ownerAlive = !ReferenceEquals(owner, null) && owner;
+
+                        // Replicate the game's tick amount calculation (Stats.cs lines 1542-1549)
+                        int expected = effect.TargetHealing;
+                        if (ownerAlive && owner.MyStats != null)
+                        {
+                            expected += UnityEngine.Mathf.RoundToInt(
+                                (float)owner.MyStats.WisScaleMod / 100f
+                                * (float)owner.MyStats.GetCurrentWis() * 10f);
+                            if (owner.MyStats.CharacterClass == GameData.ClassDB.Druid)
+                            {
+                                expected += owner.MyStats.GetCurrentWis();
+                            }
+                        }
+
+                        if (hots == null) hots = new List<HoTInfo>();
+                        hots.Add(new HoTInfo
+                        {
+                            SpellName = effect.SpellName,
+                            Owner = ownerAlive ? owner : null,
+                            ExpectedAmount = expected
+                        });
+                    }
+                }
+
+                if (hots != null)
+                    _activeHoTs[id] = hots;
+                else
+                    _activeHoTs.Remove(id);
             }
             catch (Exception) { }
         }
@@ -244,31 +315,89 @@ namespace ErenshorCombatParser.Patches
         {
             try
             {
+                int id = __instance.GetInstanceID();
                 int preHP;
-                if (!_preTickHP.TryGetValue(__instance.GetInstanceID(), out preHP))
+                if (!_preTickHP.TryGetValue(id, out preHP))
                     return;
 
-                _preTickHP.Remove(__instance.GetInstanceID());
+                _preTickHP.Remove(id);
 
                 int delta = __instance.CurrentHP - preHP;
-
-                if (delta > 0)
+                if (delta <= 0)
                 {
-                    // HoT ticks don't carry caster info; attribute to the
-                    // entity being healed so it shows up in the healing tab
-                    string entityId = __instance.Myself != null
-                        ? EntityRegistry.ResolveId(__instance.Myself)
+                    _activeHoTs.Remove(id);
+                    return;
+                }
+
+                string targetId = __instance.Myself != null
+                    ? EntityRegistry.ResolveId(__instance.Myself)
+                    : null;
+
+                long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                List<HoTInfo> hots;
+                if (!_activeHoTs.TryGetValue(id, out hots) || hots.Count == 0)
+                {
+                    // Fallback: no HoT slots found but HP increased — generic event
+                    _activeHoTs.Remove(id);
+                    CombatEventBus.EmitHeal(new HealEvent
+                    {
+                        Timestamp = now,
+                        Type = "HoT",
+                        SourceId = targetId,
+                        TargetId = targetId,
+                        SpellName = "HoT:Unknown",
+                        RawAmount = delta,
+                        ActualAmount = delta,
+                        Critical = false,
+                        IsMana = false
+                    });
+                    return;
+                }
+
+                _activeHoTs.Remove(id);
+
+                // Distribute actual delta proportionally across active HoTs
+                // based on their expected tick amounts
+                int totalExpected = 0;
+                for (int i = 0; i < hots.Count; i++)
+                    totalExpected += hots[i].ExpectedAmount;
+
+                if (totalExpected <= 0) totalExpected = 1;
+
+                int distributed = 0;
+                for (int i = 0; i < hots.Count; i++)
+                {
+                    var hot = hots[i];
+                    int actual;
+                    if (i == hots.Count - 1)
+                    {
+                        // Last HoT gets the remainder to avoid rounding drift
+                        actual = delta - distributed;
+                    }
+                    else
+                    {
+                        actual = (int)((long)delta * hot.ExpectedAmount / totalExpected);
+                    }
+
+                    if (actual <= 0) continue;
+                    distributed += actual;
+
+                    // Resolve entity ID only now — avoids registering entities
+                    // for HoTs that never actually healed anything
+                    string sourceId = hot.Owner != null
+                        ? EntityRegistry.ResolveId(hot.Owner)
                         : null;
 
                     CombatEventBus.EmitHeal(new HealEvent
                     {
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        Timestamp = now,
                         Type = "HoT",
-                        SourceId = entityId,
-                        TargetId = entityId,
-                        SpellName = "HoT",
-                        RawAmount = delta,
-                        ActualAmount = delta,
+                        SourceId = sourceId ?? targetId,
+                        TargetId = targetId,
+                        SpellName = "HoT:" + (hot.SpellName ?? "Unknown"),
+                        RawAmount = hot.ExpectedAmount,
+                        ActualAmount = actual,
                         Critical = false,
                         IsMana = false
                     });
