@@ -205,7 +205,7 @@ namespace ErenshorCombatParser.Patches
                     FinalAmount = finalAmount,
                     Critical = _criticalHit,
                     Source = source
-                });
+                }, _attacker, __instance);
             }
             catch (Exception ex) { Log.LogError("DamageMe: " + ex); }
         }
@@ -239,7 +239,7 @@ namespace ErenshorCombatParser.Patches
                     FinalAmount = finalAmount,
                     Critical = false,
                     Source = source
-                });
+                }, _attacker, __instance);
             }
             catch (Exception ex) { Log.LogError("MagicDamageMe: " + ex); }
         }
@@ -408,7 +408,7 @@ namespace ErenshorCombatParser.Patches
                     FinalAmount = __result,
                     Critical = false,
                     Source = source
-                });
+                }, effectiveAttacker, __instance);
             }
             catch (Exception) { }
         }
@@ -433,7 +433,7 @@ namespace ErenshorCombatParser.Patches
                     FinalAmount = __result,
                     Critical = false,
                     Source = "SelfDamage:Stance"
-                });
+                }, __instance, __instance);
             }
             catch (Exception) { }
         }
@@ -459,7 +459,7 @@ namespace ErenshorCombatParser.Patches
                     FinalAmount = __result,
                     Critical = false,
                     Source = "SelfDamage:Flat"
-                });
+                }, __instance, __instance);
             }
             catch (Exception) { }
         }
@@ -486,7 +486,7 @@ namespace ErenshorCombatParser.Patches
                     FinalAmount = _dmg,
                     Critical = false,
                     Source = "DamageShield"
-                });
+                }, sourceChar, __instance);
             }
             catch (Exception) { }
         }
@@ -511,7 +511,7 @@ namespace ErenshorCombatParser.Patches
                     FinalAmount = _dmg,
                     Critical = false,
                     Source = "Environmental"
-                });
+                }, target: __instance);
             }
             catch (Exception) { }
         }

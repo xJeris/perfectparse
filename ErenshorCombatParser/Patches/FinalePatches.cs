@@ -67,7 +67,7 @@ namespace ErenshorCombatParser.Patches
                         FinalAmount = _preDeliverHP,
                         Critical = false,
                         Source = "Wand (Finale)"
-                    });
+                    }, _sourceChar, _targetChar);
                 }
             }
             catch (Exception) { }

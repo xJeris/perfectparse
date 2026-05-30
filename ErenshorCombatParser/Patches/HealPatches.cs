@@ -178,7 +178,7 @@ namespace ErenshorCombatParser.Patches
                     Critical = _isCrit,
                     IsMana = _isMana,
                     IsResonance = ResonanceContext.IsResonance
-                });
+                }, _source, __instance.Myself);
             }
             catch (Exception ex) { Log.LogError("HealMe_Full error: " + ex); }
         }
@@ -226,7 +226,7 @@ namespace ErenshorCombatParser.Patches
                     ActualAmount = actualHealed,
                     Critical = false,
                     IsMana = false
-                });
+                }, __instance.Myself, __instance.Myself);
             }
             catch (Exception ex) { Log.LogError("HealMe_Simple error: " + ex); }
         }
@@ -351,7 +351,7 @@ namespace ErenshorCombatParser.Patches
                         ActualAmount = delta,
                         Critical = false,
                         IsMana = false
-                    });
+                    }, __instance.Myself, __instance.Myself);
                     return;
                 }
 
@@ -400,7 +400,7 @@ namespace ErenshorCombatParser.Patches
                         ActualAmount = actual,
                         Critical = false,
                         IsMana = false
-                    });
+                    }, hot.Owner ?? __instance.Myself, __instance.Myself);
                 }
             }
             catch (Exception ex) { Log.LogError("TickEffects error: " + ex); }

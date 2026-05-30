@@ -17,7 +17,7 @@ namespace ErenshorCombatParser
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.3.3";
+        public const string PluginVersion = "0.3.4";
 
         // Config entries
         private ConfigEntry<KeyCode> _encounterToggleKey;
@@ -26,7 +26,6 @@ namespace ErenshorCombatParser
         private ConfigEntry<bool> _enableLogging;
         private ConfigEntry<string> _outputDirectory;
         private ConfigEntry<bool> _logEnvironmental;
-        private ConfigEntry<bool> _logNpcVsNpc;
         private ConfigEntry<bool> _openInOverlay;
         private ConfigEntry<KeyCode> _toggleWindowKey;
         private ConfigEntry<float> _windowX;
@@ -55,8 +54,6 @@ namespace ErenshorCombatParser
                 "Custom output directory. Leave blank to use the plugin folder.");
             _logEnvironmental = Config.Bind("Filters", "LogEnvironmental", false,
                 "Log environmental damage (lava, fall damage, etc.).");
-            _logNpcVsNpc = Config.Bind("Filters", "LogNPCvsNPC", false,
-                "Log NPC-on-NPC combat (not involving player or sims).");
             _openInOverlay = Config.Bind("General", "OpenInOverlay", true,
                 "Open the HTML report in the default browser after generation.");
             _toggleWindowKey = Config.Bind("Hotkeys", "ToggleWindow", KeyCode.F11,
@@ -179,10 +176,6 @@ namespace ErenshorCombatParser
             if (!_logEnvironmental.Value && evt.SourceId == "Environment")
                 return;
 
-            // Filter NPC-vs-NPC if disabled
-            if (!_logNpcVsNpc.Value && IsNpcId(evt.SourceId) && IsNpcId(evt.TargetId))
-                return;
-
             _writer.Enqueue(evt.ToJsonLine());
         }
 
@@ -290,11 +283,6 @@ namespace ErenshorCombatParser
 
             // Now dispose the writer (flushes remaining queue and closes file)
             _writer?.Dispose();
-        }
-
-        private static bool IsNpcId(string id)
-        {
-            return id != null && id.StartsWith("NPC:");
         }
     }
 }

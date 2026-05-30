@@ -98,7 +98,6 @@ Generated at `BepInEx/config/com.erenshor.perfectparse.cfg` after first run:
 | Window | Width | 560 | Window width (pixels) |
 | Window | Height | 420 | Window height (pixels) |
 | Filters | LogEnvironmental | false | Log environmental damage |
-| Filters | LogNPCvsNPC | false | Log NPC-on-NPC combat |
 
 ## Project Structure
 
