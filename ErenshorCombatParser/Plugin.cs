@@ -33,6 +33,7 @@ namespace ErenshorCombatParser
         private ConfigEntry<float> _windowWidth;
         private ConfigEntry<float> _windowHeight;
         private ConfigEntry<int> _maxLogSizeMB;
+        private ConfigEntry<bool> _openReportOnExit;
 
         private Harmony _harmony;
         private JsonLineWriter _writer;
@@ -68,6 +69,8 @@ namespace ErenshorCombatParser
                 "Window height in pixels.");
             _maxLogSizeMB = Config.Bind("General", "MaxLogSizeMB", 25,
                 "Maximum JSONL log file size in MB before rotating to a new file. Rotation happens after the current encounter ends.");
+            _openReportOnExit = Config.Bind("General", "OpenReportOnExit", false,
+                "Open the HTML report in the browser when the game closes. The report is always generated on exit regardless of this setting.");
 
             // Set up output directory
             _logDir = string.IsNullOrEmpty(_outputDirectory.Value)
@@ -220,7 +223,7 @@ namespace ErenshorCombatParser
             EntityRegistry.ClearCache();
         }
 
-        private void GenerateReport()
+        private void GenerateReport(bool allowOpen = true)
         {
             try
             {
@@ -237,7 +240,7 @@ namespace ErenshorCombatParser
                     _writer.FilePath, reportPath, entityJson, encounterJson);
 
 
-                if (_openInOverlay.Value)
+                if (allowOpen && _openInOverlay.Value)
                 {
                     try
                     {
@@ -277,7 +280,7 @@ namespace ErenshorCombatParser
                 _writer?.FlushSync();
                 var logFile = new FileInfo(_writer.FilePath);
                 if (logFile.Exists && logFile.Length > 0)
-                    GenerateReport();
+                    GenerateReport(_openReportOnExit.Value);
             }
             catch (Exception) { }
 

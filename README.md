@@ -92,6 +92,7 @@ Generated at `BepInEx/config/com.erenshor.perfectparse.cfg` after first run:
 | General | EnableLogging | true | Master logging toggle |
 | General | OutputDirectory | *(blank)* | Custom output path |
 | General | OpenInOverlay | true | Open report in browser on generation |
+| General | OpenReportOnExit | false | Open report in browser when the game closes |
 | General | MaxLogSizeMB | 25 | Max JSONL file size (MB) before rotating to new file |
 | Window | X | 20 | Window X position (pixels) |
 | Window | Y | 20 | Window Y position (pixels) |
