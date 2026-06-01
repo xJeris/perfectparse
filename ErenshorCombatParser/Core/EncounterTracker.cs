@@ -88,6 +88,27 @@ namespace ErenshorCombatParser.Core
         }
 
         /// <summary>
+        /// Ends the current encounter if one is active.
+        /// Called before JSONL file rotation so the encounter closes cleanly.
+        /// </summary>
+        public static void EndCurrentEncounter()
+        {
+            if (_inEncounter)
+                EndEncounter();
+        }
+
+        /// <summary>
+        /// Resets all encounter state for a fresh session (e.g. after returning to menu).
+        /// </summary>
+        public static void Reset()
+        {
+            AllEncounters.Clear();
+            CurrentEncounterId = -1;
+            _nextId = 1;
+            _inEncounter = false;
+        }
+
+        /// <summary>
         /// Serializes all encounters to a JSON array for the HTML report.
         /// </summary>
         public static string ToJson()

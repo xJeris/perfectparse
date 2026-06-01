@@ -154,6 +154,11 @@ namespace ErenshorCombatParser.Core
             _cache.Clear();
         }
 
+        public static void ClearReportEntities()
+        {
+            _reportEntities.Clear();
+        }
+
         /// <summary>
         /// Serializes all known entities to a JSON object string for the HTML report.
         /// Uses _reportEntities which persists across scene changes.

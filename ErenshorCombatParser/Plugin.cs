@@ -221,6 +221,28 @@ namespace ErenshorCombatParser
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             EntityRegistry.ClearCache();
+
+            // Leaving gameplay (menu or quit) — rotate to a new JSONL file
+            // so each character session gets its own log.
+            if (scene.name == "Menu" || scene.name == "LoadScene")
+            {
+                EncounterTracker.EndCurrentEncounter();
+
+                try
+                {
+                    _writer?.FlushSync();
+                    string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string newPath = Path.Combine(_logDir, "combat_" + timestamp + ".jsonl");
+                    _writer?.Rotate(newPath);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning("Failed to rotate log on scene change: " + ex.Message);
+                }
+
+                EntityRegistry.ClearReportEntities();
+                EncounterTracker.Reset();
+            }
         }
 
         private void GenerateReport(bool allowOpen = true)
