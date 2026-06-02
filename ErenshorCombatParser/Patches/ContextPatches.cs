@@ -83,25 +83,26 @@ namespace ErenshorCombatParser.Patches
         // ============================================================
         // Player/NPC skill usage
         // ============================================================
+        /// <summary>
+        /// Shared logic for DoSkill and DoSkillNoChecks prefixes.
+        /// </summary>
+        private static void HandleSkillPrefix(UseSkill instance, Skill skill)
+        {
+            if (skill == null) return;
+            var ch = instance.GetComponent<Character>();
+            if (ch == null) return;
+            CombatContext.Set(ch, "Skill:" + (skill.SkillName ?? "Unknown"));
+            // If this skill applies a bleed (directly or via CastOnTarget),
+            // stash the skill name before ResolveSpell overwrites CombatContext
+            if (SkillAppliesBleed(skill))
+                DamagePatches.SetPendingBleedSkill(ch, skill.SkillName ?? "Unknown");
+        }
+
         [HarmonyPatch(typeof(UseSkill), "DoSkill")]
         [HarmonyPrefix]
         static void DoSkill_Prefix(UseSkill __instance, Skill _skill)
         {
-            try
-            {
-                if (_skill != null)
-                {
-                    var ch = __instance.GetComponent<Character>();
-                    if (ch != null)
-                    {
-                        CombatContext.Set(ch, "Skill:" + (_skill.SkillName ?? "Unknown"));
-                        // If this skill applies a bleed (directly or via CastOnTarget),
-                        // stash the skill name before ResolveSpell overwrites CombatContext
-                        if (SkillAppliesBleed(_skill))
-                            DamagePatches.SetPendingBleedSkill(ch, _skill.SkillName ?? "Unknown");
-                    }
-                }
-            }
+            try { HandleSkillPrefix(__instance, _skill); }
             catch (Exception) { }
         }
 
@@ -109,19 +110,7 @@ namespace ErenshorCombatParser.Patches
         [HarmonyPrefix]
         static void DoSkillNoChecks_Prefix(UseSkill __instance, Skill _skill)
         {
-            try
-            {
-                if (_skill != null)
-                {
-                    var ch = __instance.GetComponent<Character>();
-                    if (ch != null)
-                    {
-                        CombatContext.Set(ch, "Skill:" + (_skill.SkillName ?? "Unknown"));
-                        if (SkillAppliesBleed(_skill))
-                            DamagePatches.SetPendingBleedSkill(ch, _skill.SkillName ?? "Unknown");
-                    }
-                }
-            }
+            try { HandleSkillPrefix(__instance, _skill); }
             catch (Exception) { }
         }
 

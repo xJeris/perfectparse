@@ -392,15 +392,19 @@ function dmgClass(t) {
   const m = { Physical:'dmg-phys', Magic:'dmg-magic', Elemental:'dmg-elem', Void:'dmg-void', Poison:'dmg-poison' };
   return m[t] || '';
 }
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/""/g,'&quot;');
+}
 function entityName(id) {
   const e = ENTITIES[id];
-  if (e) return e.name;
+  if (e) return escHtml(e.name);
   if (!id) return '??';
-  return id;
+  return escHtml(id);
 }
 function entityClass(id) {
   const e = ENTITIES[id];
-  return e ? (e.class || '') : '';
+  return e ? escHtml(e.class || '') : '';
 }
 function entityLevel(id) {
   const e = ENTITIES[id];

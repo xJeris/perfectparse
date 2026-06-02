@@ -98,6 +98,7 @@ Generated at `BepInEx/config/com.erenshor.perfectparse.cfg` after first run:
 | Window | Y | 20 | Window Y position (pixels) |
 | Window | Width | 560 | Window width (pixels) |
 | Window | Height | 420 | Window height (pixels) |
+| Window | FontSize | 11 | Base font size for the in-game window (increase for high-res displays) |
 | Filters | LogEnvironmental | false | Log environmental damage |
 
 ## Project Structure

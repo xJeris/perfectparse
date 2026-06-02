@@ -13,61 +13,64 @@ namespace ErenshorCombatParser.Patches
     [HarmonyPatch(typeof(WandBolt), "DeliverDamage")]
     public static class FinalePatches
     {
-        private static int _preDeliverHP;
-        private static int _preDeliverMaxHP;
-        private static Character _targetChar;
-        private static Character _sourceChar;
-        private static GameData.DamageType _dmgType;
+        public struct FinaleState
+        {
+            public int PreHP;
+            public int PreMaxHP;
+            public Character Target;
+            public Character Source;
+            public GameData.DamageType DmgType;
+        }
 
         [HarmonyPrefix]
-        static void Prefix(WandBolt __instance)
+        static void Prefix(WandBolt __instance, ref FinaleState __state)
         {
             try
             {
-                _targetChar = __instance.TargetChar;
-                _sourceChar = __instance.SourceChar;
-                _dmgType = __instance.DmgType;
-                if (_targetChar != null && _targetChar.MyStats != null)
+                __state.Target = __instance.TargetChar;
+                __state.Source = __instance.SourceChar;
+                __state.DmgType = __instance.DmgType;
+                if (__state.Target != null && __state.Target.MyStats != null)
                 {
-                    _preDeliverHP = _targetChar.MyStats.CurrentHP;
-                    _preDeliverMaxHP = _targetChar.MyStats.CurrentMaxHP;
+                    __state.PreHP = __state.Target.MyStats.CurrentHP;
+                    __state.PreMaxHP = __state.Target.MyStats.CurrentMaxHP;
                 }
                 else
                 {
-                    _preDeliverHP = 0;
-                    _preDeliverMaxHP = 0;
+                    __state.PreHP = 0;
+                    __state.PreMaxHP = 0;
                 }
             }
             catch (Exception) { }
         }
 
         [HarmonyPostfix]
-        static void Postfix(WandBolt __instance)
+        static void Postfix(WandBolt __instance, FinaleState __state)
         {
             try
             {
-                if (_targetChar == null || _targetChar.MyStats == null) return;
-                if (_sourceChar == null) return;
+                if (__state.Target == null || __state.Target.MyStats == null) return;
+                if (__state.Source == null) return;
 
                 // Finale condition: HP went to 0, was > 0 before, was <= 15% max
-                if (_targetChar.MyStats.CurrentHP == 0 &&
-                    _preDeliverHP > 0 &&
-                    _preDeliverMaxHP > 0 &&
-                    (float)_preDeliverHP / _preDeliverMaxHP <= 0.15f)
+                if (__state.Target.MyStats.CurrentHP == 0 &&
+                    __state.PreHP > 0 &&
+                    __state.PreMaxHP > 0 &&
+                    (float)__state.PreHP / __state.PreMaxHP <= 0.15f)
                 {
-                    string dmgTypeName = _dmgType == GameData.DamageType.Physical ? "Physical" : "Magic";
+                    string dmgTypeName = __state.DmgType == GameData.DamageType.Physical ? "Physical" : "Magic";
                     CombatEventBus.EmitDamage(new CombatEvent
                     {
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                         Type = "Finale",
-                        SourceId = EntityRegistry.ResolveId(_sourceChar),
-                        TargetId = EntityRegistry.ResolveId(_targetChar),
+                        SourceId = EntityRegistry.ResolveId(__state.Source),
+                        TargetId = EntityRegistry.ResolveId(__state.Target),
                         DamageType = dmgTypeName,
-                        RawAmount = _preDeliverHP,
-                        FinalAmount = _preDeliverHP,
+                        RawAmount = __state.PreHP,
+                        FinalAmount = __state.PreHP,
                         Critical = false,
                         Source = "Wand (Finale)"
-                    }, _sourceChar, _targetChar);
+                    }, __state.Source, __state.Target);
                 }
             }
             catch (Exception) { }

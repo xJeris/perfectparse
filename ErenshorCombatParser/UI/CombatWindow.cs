@@ -146,6 +146,8 @@ namespace ErenshorCombatParser.UI
         private const float MinWidth = 300f;
         private const float MinHeight = 200f;
 
+        public int BaseFontSize { get; set; } = 11;
+
         public CombatWindow()
         {
             _windowId = "com.erenshor.perfectparse.combatwindow".GetHashCode();
@@ -359,6 +361,7 @@ namespace ErenshorCombatParser.UI
             _firstTimestamp = long.MaxValue;
             _lastTimestamp = 0;
             _lastCacheTime = 0;
+            EncounterTracker.Reset();
         }
 
         // --- Helpers ---
@@ -492,27 +495,29 @@ namespace ErenshorCombatParser.UI
             if (!needsRebuild) return;
             _stylesInitialized = true;
 
+            int fs = BaseFontSize;
+
             _headerStyle = new GUIStyle(GUI.skin.label)
             {
                 fontStyle = FontStyle.Bold,
-                fontSize = 12
+                fontSize = fs + 1
             };
 
             _rowStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = 11,
+                fontSize = fs,
                 richText = true
             };
 
             _tabActiveStyle = new GUIStyle(GUI.skin.button)
             {
                 fontStyle = FontStyle.Bold,
-                fontSize = 11
+                fontSize = fs
             };
 
             _tabInactiveStyle = new GUIStyle(GUI.skin.button)
             {
-                fontSize = 11
+                fontSize = fs
             };
 
             // Opaque dark background so window content is readable over game world

@@ -62,6 +62,20 @@ namespace ErenshorCombatParser.Patches
         private static int _bleedMapCleanupFrame = -1;
         private static readonly List<BleedKey> _staleBleedKeys = new List<BleedKey>();
 
+        /// <summary>
+        /// Clears cached state that could leak between sessions (e.g. scene changes).
+        /// </summary>
+        public static void ClearState()
+        {
+            _bleedQueue.Clear();
+            _bleedQueueFrame = -1;
+            _bleedQueueTarget = null;
+            _bleedSkillMap.Clear();
+            _pendingBleedSkill.Clear();
+            _bleedMapCleanupFrame = -1;
+            _staleBleedKeys.Clear();
+        }
+
         public static void Apply(Harmony harmony)
         {
             var self = typeof(DamagePatches);

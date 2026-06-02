@@ -44,20 +44,25 @@ namespace ErenshorCombatParser.Patches
             catch (Exception) { }
         }
 
+        /// <summary>
+        /// Shared prefix for AEEvent and AEEvent2 — reads MyChar and DamageReason fields.
+        /// </summary>
+        private static void AEPrefix(object instance)
+        {
+            var t = Traverse.Create(instance);
+            var ch = t.Field("MyChar").GetValue<Character>();
+            if (ch == null) return;
+            var reason = t.Field("DamageReason").GetValue<string>();
+            CombatContext.Set(ch, "Spell:" + (string.IsNullOrEmpty(reason) ? "AoE" : reason));
+        }
+
         // ============================================================
         // AEEvent — generic AoE damage script
         // Uses DamageReason field for attack name (e.g. "from the poison cloud")
         // ============================================================
         static void AEEvent_Prefix(object __instance)
         {
-            try
-            {
-                var t = Traverse.Create(__instance);
-                var ch = t.Field("MyChar").GetValue<Character>();
-                if (ch == null) return;
-                var reason = t.Field("DamageReason").GetValue<string>();
-                CombatContext.Set(ch, "Spell:" + (string.IsNullOrEmpty(reason) ? "AoE" : reason));
-            }
+            try { AEPrefix(__instance); }
             catch (Exception) { }
         }
 
@@ -66,14 +71,7 @@ namespace ErenshorCombatParser.Patches
         // ============================================================
         static void AEEvent2_Prefix(object __instance)
         {
-            try
-            {
-                var t = Traverse.Create(__instance);
-                var ch = t.Field("MyChar").GetValue<Character>();
-                if (ch == null) return;
-                var reason = t.Field("DamageReason").GetValue<string>();
-                CombatContext.Set(ch, "Spell:" + (string.IsNullOrEmpty(reason) ? "AoE" : reason));
-            }
+            try { AEPrefix(__instance); }
             catch (Exception) { }
         }
 

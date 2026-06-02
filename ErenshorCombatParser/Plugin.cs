@@ -17,7 +17,7 @@ namespace ErenshorCombatParser
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.3.4";
+        public const string PluginVersion = "0.3.5";
 
         // Config entries
         private ConfigEntry<KeyCode> _encounterToggleKey;
@@ -34,6 +34,7 @@ namespace ErenshorCombatParser
         private ConfigEntry<float> _windowHeight;
         private ConfigEntry<int> _maxLogSizeMB;
         private ConfigEntry<bool> _openReportOnExit;
+        private ConfigEntry<int> _windowFontSize;
 
         private Harmony _harmony;
         private JsonLineWriter _writer;
@@ -71,6 +72,8 @@ namespace ErenshorCombatParser
                 "Maximum JSONL log file size in MB before rotating to a new file. Rotation happens after the current encounter ends.");
             _openReportOnExit = Config.Bind("General", "OpenReportOnExit", false,
                 "Open the HTML report in the browser when the game closes. The report is always generated on exit regardless of this setting.");
+            _windowFontSize = Config.Bind("Window", "FontSize", 11,
+                "Base font size for the in-game combat stats window. Increase for high-resolution displays.");
 
             // Set up output directory
             _logDir = string.IsNullOrEmpty(_outputDirectory.Value)
@@ -93,6 +96,7 @@ namespace ErenshorCombatParser
 
             // Set up in-game combat window
             _combatWindow = new CombatWindow();
+            _combatWindow.BaseFontSize = _windowFontSize.Value;
             _combatWindow.WindowRect = new Rect(
                 _windowX.Value, _windowY.Value,
                 _windowWidth.Value, _windowHeight.Value);
@@ -242,6 +246,9 @@ namespace ErenshorCombatParser
 
                 EntityRegistry.ClearReportEntities();
                 EncounterTracker.Reset();
+                _combatWindow?.Reset();
+                Patches.DamagePatches.ClearState();
+                Patches.HealPatches.ClearState();
             }
         }
 
@@ -299,10 +306,13 @@ namespace ErenshorCombatParser
             // Generate report on exit, but only if combat events were actually logged
             try
             {
-                _writer?.FlushSync();
-                var logFile = new FileInfo(_writer.FilePath);
-                if (logFile.Exists && logFile.Length > 0)
-                    GenerateReport(_openReportOnExit.Value);
+                if (_writer != null)
+                {
+                    _writer.FlushSync();
+                    var logFile = new FileInfo(_writer.FilePath);
+                    if (logFile.Exists && logFile.Length > 0)
+                        GenerateReport(_openReportOnExit.Value);
+                }
             }
             catch (Exception) { }
 

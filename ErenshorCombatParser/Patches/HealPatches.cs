@@ -126,6 +126,16 @@ namespace ErenshorCombatParser.Patches
             catch (Exception ex) { Log.LogWarning("ResolveSpell resonance patch failed: " + ex.Message); }
         }
 
+        /// <summary>
+        /// Clears cached state that could leak between sessions (e.g. scene changes).
+        /// </summary>
+        public static void ClearState()
+        {
+            _preHealHP.Clear();
+            _preTickHP.Clear();
+            _activeHoTs.Clear();
+        }
+
         // ============================================================
         // SpellVessel.ResolveSpell — resonance context
         // ============================================================

@@ -87,8 +87,12 @@ namespace ErenshorCombatParser.IO
                         _signal.WaitOne(2000);
                         _signal.Reset();
 
+                        bool flushing = _flushRequested.WaitOne(0);
+                        if (flushing) _flushRequested.Reset();
+
                         int count = 0;
-                        while (_queue.TryDequeue(out string line) && count < 500)
+                        int limit = flushing ? int.MaxValue : 500;
+                        while (_queue.TryDequeue(out string line) && count < limit)
                         {
                             writer.WriteLine(line);
                             count++;
@@ -97,9 +101,8 @@ namespace ErenshorCombatParser.IO
                         if (count > 0)
                             writer.Flush();
 
-                        if (_flushRequested.WaitOne(0))
+                        if (flushing)
                         {
-                            _flushRequested.Reset();
                             _flushDone.Set();
                         }
 

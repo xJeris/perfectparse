@@ -174,7 +174,7 @@ namespace ErenshorCombatParser.IO
 
         /// <summary>
         /// Extracts a string value for a given key from a JSON line.
-        /// Simple parser — does not handle escaped quotes in values.
+        /// Handles escaped quotes within values.
         /// </summary>
         private static string ExtractJsonString(string json, string key)
         {
@@ -182,8 +182,15 @@ namespace ErenshorCombatParser.IO
             int start = json.IndexOf(pattern, StringComparison.Ordinal);
             if (start < 0) return null;
             start += pattern.Length;
-            int end = json.IndexOf('"', start);
-            if (end < 0) return null;
+            // Find the closing quote, skipping escaped quotes
+            int end = start;
+            while (end < json.Length)
+            {
+                if (json[end] == '"' && (end == 0 || json[end - 1] != '\\'))
+                    break;
+                end++;
+            }
+            if (end >= json.Length) return null;
             return json.Substring(start, end - start);
         }
 
