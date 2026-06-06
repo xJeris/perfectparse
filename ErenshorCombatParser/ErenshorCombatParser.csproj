@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
     <AssemblyName>PerfectParse</AssemblyName>
     <RootNamespace>ErenshorCombatParser</RootNamespace>
     <LangVersion>9.0</LangVersion>
@@ -21,6 +21,10 @@
     </Reference>
     <Reference Include="0Harmony">
       <HintPath>$(BepInExDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Lunaris">
+      <HintPath>$(GameDir)\Lunaris.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">

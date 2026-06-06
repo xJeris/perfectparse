@@ -9,5 +9,10 @@ namespace ErenshorCombatParser.Core
     public static class ResonanceContext
     {
         public static bool IsResonance;
+
+        public static void Reset()
+        {
+            IsResonance = false;
+        }
     }
 }

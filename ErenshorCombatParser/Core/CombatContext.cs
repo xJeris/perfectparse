@@ -110,5 +110,17 @@ namespace ErenshorCombatParser.Core
             }
             return false;
         }
+
+        /// <summary>
+        /// Clears all cached context. Called during shutdown to prevent
+        /// stale state persisting across Lunaris hot-reloads.
+        /// </summary>
+        public static void Reset()
+        {
+            _entries.Clear();
+            _critOverrides.Clear();
+            _staleKeys.Clear();
+            _lastCleanupFrame = -1;
+        }
     }
 }

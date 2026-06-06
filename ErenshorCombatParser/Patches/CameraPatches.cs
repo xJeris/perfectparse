@@ -1,8 +1,8 @@
 using System;
 using System.Reflection;
-using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
+using ErenshorCombatParser.Core;
 
 namespace ErenshorCombatParser.Patches
 {
@@ -16,8 +16,6 @@ namespace ErenshorCombatParser.Patches
     /// </summary>
     public static class CameraPatches
     {
-        private static readonly ManualLogSource Log = BepInEx.Logging.Logger.CreateLogSource("PerfectParse.Camera");
-
         // Cached reflection for the zoom offset field path
         private static FieldInfo _virtualCameraField;
         private static MethodInfo _getCinemachineComponentMethod;
@@ -48,7 +46,7 @@ namespace ErenshorCombatParser.Patches
             }
             else
             {
-                Log.LogWarning("Could not find CameraController.Controls — scroll wheel blocking disabled.");
+                Log.Warning("Could not find CameraController.Controls — scroll wheel blocking disabled.");
             }
         }
 
@@ -124,7 +122,7 @@ namespace ErenshorCombatParser.Patches
             }
             catch (Exception e)
             {
-                Log.LogWarning($"Failed to save camera zoom state: {e.Message}");
+                Log.Warning($"Failed to save camera zoom state: {e.Message}");
             }
         }
 
@@ -145,7 +143,7 @@ namespace ErenshorCombatParser.Patches
             }
             catch (Exception e)
             {
-                Log.LogWarning($"Failed to restore camera zoom state: {e.Message}");
+                Log.Warning($"Failed to restore camera zoom state: {e.Message}");
             }
 
             _shouldRestore = false;

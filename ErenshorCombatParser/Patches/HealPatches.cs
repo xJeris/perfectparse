@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using BepInEx.Logging;
 using HarmonyLib;
 using ErenshorCombatParser.Core;
 using ErenshorCombatParser.Models;
@@ -14,8 +13,6 @@ namespace ErenshorCombatParser.Patches
     /// </summary>
     public static class HealPatches
     {
-        private static readonly ManualLogSource Log = Logger.CreateLogSource("PerfectParse.Heal");
-
         // Cached reflection accessor for SpellVessel.resonating (private field)
         private static FieldInfo _resonatingField;
 
@@ -41,10 +38,10 @@ namespace ErenshorCombatParser.Patches
                 }
                 else
                 {
-                    Log.LogWarning("Stats.HealMe(Spell,int,bool,bool,Character) NOT FOUND");
+                    Log.Warning("Stats.HealMe(Spell,int,bool,bool,Character) NOT FOUND");
                 }
             }
-            catch (Exception ex) { Log.LogError("HealMe(full) patch failed: " + ex); }
+            catch (Exception ex) { Log.Error("HealMe(full) patch failed: " + ex); }
 
             // ============================================================
             // Stats.HealMe(int) — simple heal
@@ -65,10 +62,10 @@ namespace ErenshorCombatParser.Patches
                 }
                 else
                 {
-                    Log.LogWarning("Stats.HealMe(int) NOT FOUND");
+                    Log.Warning("Stats.HealMe(int) NOT FOUND");
                 }
             }
-            catch (Exception ex) { Log.LogError("HealMe(int) patch failed: " + ex); }
+            catch (Exception ex) { Log.Error("HealMe(int) patch failed: " + ex); }
 
             // ============================================================
             // Stats.TickEffects — HoT tracking (private method)
@@ -87,10 +84,10 @@ namespace ErenshorCombatParser.Patches
                 }
                 else
                 {
-                    Log.LogWarning("Stats.TickEffects NOT FOUND");
+                    Log.Warning("Stats.TickEffects NOT FOUND");
                 }
             }
-            catch (Exception ex) { Log.LogError("TickEffects patch failed: " + ex); }
+            catch (Exception ex) { Log.Error("TickEffects patch failed: " + ex); }
 
             // ============================================================
             // SpellVessel.ResolveSpell — resonance context tracking
@@ -115,15 +112,15 @@ namespace ErenshorCombatParser.Patches
                     }
                     else
                     {
-                        Log.LogWarning("SpellVessel.ResolveSpell NOT FOUND — resonance tracking disabled");
+                        Log.Warning("SpellVessel.ResolveSpell NOT FOUND — resonance tracking disabled");
                     }
                 }
                 else
                 {
-                    Log.LogWarning("SpellVessel.resonating field NOT FOUND — resonance tracking disabled");
+                    Log.Warning("SpellVessel.resonating field NOT FOUND — resonance tracking disabled");
                 }
             }
-            catch (Exception ex) { Log.LogWarning("ResolveSpell resonance patch failed: " + ex.Message); }
+            catch (Exception ex) { Log.Warning("ResolveSpell resonance patch failed: " + ex.Message); }
         }
 
         /// <summary>
@@ -190,7 +187,7 @@ namespace ErenshorCombatParser.Patches
                     IsResonance = ResonanceContext.IsResonance
                 }, _source, __instance.Myself);
             }
-            catch (Exception ex) { Log.LogError("HealMe_Full error: " + ex); }
+            catch (Exception ex) { Log.Error("HealMe_Full error: " + ex); }
         }
 
         // ============================================================
@@ -238,7 +235,7 @@ namespace ErenshorCombatParser.Patches
                     IsMana = false
                 }, __instance.Myself, __instance.Myself);
             }
-            catch (Exception ex) { Log.LogError("HealMe_Simple error: " + ex); }
+            catch (Exception ex) { Log.Error("HealMe_Simple error: " + ex); }
         }
 
         // ============================================================
@@ -413,7 +410,7 @@ namespace ErenshorCombatParser.Patches
                     }, hot.Owner ?? __instance.Myself, __instance.Myself);
                 }
             }
-            catch (Exception ex) { Log.LogError("TickEffects error: " + ex); }
+            catch (Exception ex) { Log.Error("TickEffects error: " + ex); }
         }
     }
 }

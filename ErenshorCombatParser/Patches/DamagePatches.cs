@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using BepInEx.Logging;
 using HarmonyLib;
 using ErenshorCombatParser.Core;
 using ErenshorCombatParser.Models;
@@ -14,8 +13,6 @@ namespace ErenshorCombatParser.Patches
     /// </summary>
     public static class DamagePatches
     {
-        private static readonly ManualLogSource Log = Logger.CreateLogSource("PerfectParse.Damage");
-
         // Bleed info queue: built once per target per frame tick, consumed in order
         private struct BleedInfo
         {
@@ -89,7 +86,7 @@ namespace ErenshorCombatParser.Patches
                     postfix: new HarmonyMethod(self.GetMethod("DamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
-            else Log.LogError("Could not find Character.DamageMe");
+            else Log.Error("Could not find Character.DamageMe");
 
             // MagicDamageMe
             var magicDmg = typeof(Character).GetMethod("MagicDamageMe",
@@ -100,7 +97,7 @@ namespace ErenshorCombatParser.Patches
                     postfix: new HarmonyMethod(self.GetMethod("MagicDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
-            else Log.LogError("Could not find Character.MagicDamageMe");
+            else Log.Error("Could not find Character.MagicDamageMe");
 
             // BleedDamageMe
             var bleedDmg = typeof(Character).GetMethod("BleedDamageMe",
@@ -113,7 +110,7 @@ namespace ErenshorCombatParser.Patches
                     postfix: new HarmonyMethod(self.GetMethod("BleedDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
-            else Log.LogError("Could not find Character.BleedDamageMe");
+            else Log.Error("Could not find Character.BleedDamageMe");
 
             // SelfDamageMe
             var selfDmg = typeof(Character).GetMethod("SelfDamageMe",
@@ -125,7 +122,7 @@ namespace ErenshorCombatParser.Patches
                     postfix: new HarmonyMethod(self.GetMethod("SelfDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
-            else Log.LogError("Could not find Character.SelfDamageMe");
+            else Log.Error("Could not find Character.SelfDamageMe");
 
             // SelfDamageMeFlat
             var selfDmgFlat = typeof(Character).GetMethod("SelfDamageMeFlat",
@@ -136,7 +133,7 @@ namespace ErenshorCombatParser.Patches
                     postfix: new HarmonyMethod(self.GetMethod("SelfDamageMeFlat_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
-            else Log.LogError("Could not find Character.SelfDamageMeFlat");
+            else Log.Error("Could not find Character.SelfDamageMeFlat");
 
             // DamageShieldTaken
             var dmgShield = typeof(Character).GetMethod("DamageShieldTaken",
@@ -147,7 +144,7 @@ namespace ErenshorCombatParser.Patches
                     prefix: new HarmonyMethod(self.GetMethod("DamageShieldTaken_Prefix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
-            else Log.LogError("Could not find Character.DamageShieldTaken");
+            else Log.Error("Could not find Character.DamageShieldTaken");
 
             // EnvironmentalDamageMe
             var envDmg = typeof(Character).GetMethod("EnvironmentalDamageMe",
@@ -158,7 +155,7 @@ namespace ErenshorCombatParser.Patches
                     postfix: new HarmonyMethod(self.GetMethod("EnvironmentalDamageMe_Postfix",
                         BindingFlags.Static | BindingFlags.NonPublic)));
             }
-            else Log.LogError("Could not find Character.EnvironmentalDamageMe");
+            else Log.Error("Could not find Character.EnvironmentalDamageMe");
 
             // AddStatusEffect — capture originating skill name for bleed effects.
             // 4-param overload (called by UseSkill.DoSkill with _specificCaster)
@@ -232,7 +229,7 @@ namespace ErenshorCombatParser.Patches
                     Source = source
                 }, _attacker, __instance);
             }
-            catch (Exception ex) { Log.LogError("DamageMe: " + ex); }
+            catch (Exception ex) { Log.Error("DamageMe: " + ex); }
         }
 
         static void MagicDamageMe_Postfix(
@@ -266,7 +263,7 @@ namespace ErenshorCombatParser.Patches
                     Source = source
                 }, _attacker, __instance);
             }
-            catch (Exception ex) { Log.LogError("MagicDamageMe: " + ex); }
+            catch (Exception ex) { Log.Error("MagicDamageMe: " + ex); }
         }
 
         // ============================================================
@@ -316,7 +313,7 @@ namespace ErenshorCombatParser.Patches
                 var key = new BleedKey { Target = target, Effect = spell, Owner = caster };
                 _bleedSkillMap[key] = displayName;
             }
-            catch (Exception ex) { Log.LogError("[BleedRecord] " + ex); }
+            catch (Exception ex) { Log.Error("[BleedRecord] " + ex); }
         }
 
         static void AddStatusEffect4_Postfix(Stats __instance, Spell spell, Character _specificCaster)

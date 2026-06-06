@@ -1,6 +1,6 @@
 # PerfectParse
 
-A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks real-time combat events and generates self-contained HTML reports with DPS calculations, damage/healing breakdowns, and encounter tracking.
+A combat parser mod for **Erenshor** that tracks real-time combat events and generates self-contained HTML reports with DPS calculations, damage/healing breakdowns, and encounter tracking. Supports both [Lunaris](https://erenshorvault.app) and [BepInEx](https://github.com/BepInEx/BepInEx) mod loaders.
 
 ![SampleImg](sample.png)
 
@@ -35,8 +35,10 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Erenshor** that tracks
 ## Requirements
 
 - Erenshor (Steam)
-- BepInEx 5.4.x (x64) — **not** 6.x
-- .NET Framework 4.7.2 SDK (for building)
+- One of the following mod loaders:
+  - **Lunaris** (recommended) — Erenshor-specific mod loader ([erenshorvault.app](https://erenshorvault.app))
+  - **BepInEx 5.4.x** (x64) — **not** 6.x
+- .NET Framework 4.8 SDK (for building)
 
 ## Building
 
@@ -45,13 +47,25 @@ dotnet build ErenshorCombatParser/ErenshorCombatParser.csproj -c Release
 dotnet build PerfectParseReport/PerfectParseReport.csproj -c Release
 ```
 
-The mod DLL requires references to BepInEx, Harmony, and Erenshor game assemblies. The `.csproj` expects these at standard paths under the game's install directory — update `HintPath` entries if your game is installed elsewhere.
+The mod DLL requires references to BepInEx, Harmony, Lunaris, and Erenshor game assemblies. The `.csproj` expects these at standard paths under the game's install directory — update `HintPath` entries if your game is installed elsewhere.
+
+> **Note:** Both mod loader entry points are compiled into a single DLL, so `Lunaris.dll` must be present in the game directory at build time even if you only use BepInEx. Lunaris is auto-downloaded when the game launches — run the game once to obtain it.
 
 Output:
-- `ErenshorCombatParser/bin/Release/net472/PerfectParse.dll` — the mod plugin
-- `PerfectParseReport/bin/Release/net472/PerfectParseReport.exe` — standalone report generator
+- `ErenshorCombatParser/bin/Release/net48/PerfectParse.dll` — the mod plugin
+- `PerfectParseReport/bin/Release/net48/PerfectParseReport.exe` — standalone report generator
 
 ## Installation
+
+### Lunaris (recommended)
+
+Install via the [Erenshor Vault](https://erenshorvault.app), or manually copy `PerfectParse.dll` and `PerfectParseReport.exe` into:
+
+```
+<Game Folder>/plugins/PerfectParse/
+```
+
+### BepInEx
 
 Copy `PerfectParse.dll` and `PerfectParseReport.exe` into:
 
@@ -67,6 +81,8 @@ HideManagerGameObject = true
 
 Without this, Harmony patches cannot intercept Erenshor's methods and the mod will silently do nothing.
 
+> **Note:** Under BepInEx, you may see a `ReflectionTypeLoadException` warning in the console. This is harmless — BepInEx's type scanner encounters the Lunaris entry point class, but the mod loads and functions normally.
+
 ## Usage
 
 | Hotkey | Action |
@@ -75,13 +91,17 @@ Without this, Harmony patches cannot intercept Erenshor's methods and the mod wi
 | F10 | Generate HTML report and open in browser |
 | F11 | Toggle live in-game combat stats window |
 
-Logs and reports are saved to `BepInEx/plugins/PerfectParse/logs/`.
+Logs and reports are saved to:
+- **Lunaris:** `<Game Folder>/plugins/PerfectParse/logs/`
+- **BepInEx:** `<Game Folder>/BepInEx/plugins/PerfectParse/logs/`
 
 **Standalone report generator:** Run `PerfectParseReport.exe` to convert the latest JSONL log into an HTML report without the game running. Supports drag-and-drop or command line: `PerfectParseReport.exe <file.jsonl> [output.html]`.
 
 ## Configuration
 
-Generated at `BepInEx/config/com.erenshor.perfectparse.cfg` after first run:
+Generated after first run at:
+- **Lunaris:** `<Game Folder>/plugins/PerfectParse/config.json`
+- **BepInEx:** `<Game Folder>/BepInEx/config/com.erenshor.perfectparse.cfg`
 
 | Section | Key | Default | Description |
 |---------|-----|---------|-------------|
@@ -104,9 +124,13 @@ Generated at `BepInEx/config/com.erenshor.perfectparse.cfg` after first run:
 ## Project Structure
 
 ```
-ErenshorCombatParser/        Main mod (BepInEx plugin DLL)
-  Plugin.cs                  Entry point, config, hotkeys
-  Core/                      Event bus, entity registry, encounter tracker, combat context
+ErenshorCombatParser/        Main mod (plugin DLL)
+  Plugin.cs                  BepInEx entry point (thin wrapper)
+  LunarisEntry.cs            Lunaris entry point (thin wrapper)
+  Core/                      Shared logic, event bus, entity registry, encounter tracker
+    PluginCore.cs             Shared plugin logic (config, hotkeys, lifecycle)
+    PluginConfig.cs           Loader-agnostic config container
+    Log.cs                    Logging abstraction (wired by each entry point)
   Patches/                   Harmony patches for damage, healing, context, finale
   Models/                    CombatEvent, HealEvent, Encounter
   IO/                        JSONL writer, HTML report generator, HTML template

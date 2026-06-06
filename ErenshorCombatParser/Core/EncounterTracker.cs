@@ -109,6 +109,15 @@ namespace ErenshorCombatParser.Core
         }
 
         /// <summary>
+        /// Clears the OnEncounterEnded event subscribers. Called during shutdown
+        /// to prevent stale delegates persisting across Lunaris hot-reloads.
+        /// </summary>
+        public static void ClearSubscribers()
+        {
+            OnEncounterEnded = null;
+        }
+
+        /// <summary>
         /// Serializes all encounters to a JSON array for the HTML report.
         /// </summary>
         public static string ToJson()

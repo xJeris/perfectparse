@@ -18,6 +18,17 @@ namespace ErenshorCombatParser.Core
         private static FieldInfo _inRaidField;
         private static bool _inRaidChecked;
 
+        /// <summary>
+        /// Clears all event subscribers. Called during shutdown to prevent
+        /// stale delegates persisting across Lunaris hot-reloads.
+        /// </summary>
+        public static void ClearSubscribers()
+        {
+            OnCombatEvent = null;
+            OnHealEvent = null;
+            OnEntityEvent = null;
+        }
+
         public static void EmitDamage(CombatEvent evt, Character source = null, Character target = null)
         {
             if (!IsRelevantEntity(source) && !IsRelevantEntity(target))

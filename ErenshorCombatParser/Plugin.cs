@@ -1,25 +1,14 @@
-using System;
-using System.IO;
 using BepInEx;
 using BepInEx.Configuration;
-using HarmonyLib;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using ErenshorCombatParser.Core;
-using ErenshorCombatParser.IO;
-using ErenshorCombatParser.Models;
-using ErenshorCombatParser.UI;
 
 namespace ErenshorCombatParser
 {
-    [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
+    [BepInPlugin(PluginCore.PluginGUID, PluginCore.PluginName, PluginCore.PluginVersion)]
     public class Plugin : BaseUnityPlugin
     {
-        public const string PluginGUID = "com.erenshor.perfectparse";
-        public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.3.5";
-
-        // Config entries
+        // BepInEx config entries (for live read/write via ConfigEntry<T>)
         private ConfigEntry<KeyCode> _encounterToggleKey;
         private ConfigEntry<KeyCode> _generateReportKey;
         private ConfigEntry<float> _idleTimeout;
@@ -36,13 +25,15 @@ namespace ErenshorCombatParser
         private ConfigEntry<bool> _openReportOnExit;
         private ConfigEntry<int> _windowFontSize;
 
-        private Harmony _harmony;
-        private JsonLineWriter _writer;
-        private string _logDir;
-        private CombatWindow _combatWindow;
+        private PluginCore _core;
 
         private void Awake()
         {
+            // Wire logging to BepInEx
+            Log.Info = s => Logger.LogInfo(s);
+            Log.Warning = s => Logger.LogWarning(s);
+            Log.Error = s => Logger.LogError(s);
+
             // Bind config
             _encounterToggleKey = Config.Bind("Hotkeys", "EncounterToggle", KeyCode.F9,
                 "Key to manually start/stop an encounter.");
@@ -75,249 +66,39 @@ namespace ErenshorCombatParser
             _windowFontSize = Config.Bind("Window", "FontSize", 11,
                 "Base font size for the in-game combat stats window. Increase for high-resolution displays.");
 
-            // Set up output directory
-            _logDir = string.IsNullOrEmpty(_outputDirectory.Value)
-                ? Path.Combine(Paths.PluginPath, "PerfectParse", "logs")
-                : _outputDirectory.Value;
-            Directory.CreateDirectory(_logDir);
-
-            // Apply encounter idle timeout
-            EncounterTracker.IdleTimeout = _idleTimeout.Value;
-
-            // Start JSONL writer
-            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            string logFile = Path.Combine(_logDir, "combat_" + timestamp + ".jsonl");
-            _writer = new JsonLineWriter(logFile);
-
-            // Subscribe to combat events
-            CombatEventBus.OnCombatEvent += OnCombatEvent;
-            CombatEventBus.OnHealEvent += OnHealEvent;
-            CombatEventBus.OnEntityEvent += OnEntityEvent;
-
-            // Set up in-game combat window
-            _combatWindow = new CombatWindow();
-            _combatWindow.BaseFontSize = _windowFontSize.Value;
-            _combatWindow.WindowRect = new Rect(
-                _windowX.Value, _windowY.Value,
-                _windowWidth.Value, _windowHeight.Value);
-            CombatEventBus.OnCombatEvent += _combatWindow.OnCombatEvent;
-            CombatEventBus.OnHealEvent += _combatWindow.OnHealEvent;
-            CombatEventBus.OnEntityEvent += _combatWindow.OnEntityEvent;
-
-            // Subscribe to encounter end for JSONL file rotation
-            EncounterTracker.OnEncounterEnded += OnEncounterEnded;
-
-            // Hook scene changes to clear entity cache
-            SceneManager.sceneLoaded += OnSceneLoaded;
-
-            // Apply Harmony patches
-            _harmony = new Harmony(PluginGUID);
-
-            // Apply patches
-            Patches.DamagePatches.Apply(_harmony);
-            Patches.HealPatches.Apply(_harmony);
-            Patches.CameraPatches.Apply(_harmony);
-            Patches.BossMechanicPatches.Apply(_harmony);
-            _harmony.PatchAll();
-
-            Logger.LogInfo($"{PluginName} v{PluginVersion} loaded.");
-        }
-
-        private bool IsInGameplay()
-        {
-            var scene = SceneManager.GetActiveScene().name;
-            return scene != "Menu" && scene != "LoadScene";
-        }
-
-        private void Update()
-        {
-            if (!IsInGameplay()) return;
-
-            // Encounter auto-end check
-            EncounterTracker.OnCombatTick();
-
-            // Hotkeys
-            if (Input.GetKeyDown(_encounterToggleKey.Value))
+            // Populate loader-agnostic config
+            var config = new PluginConfig
             {
-                EncounterTracker.ToggleManual();
-            }
-
-            if (Input.GetKeyDown(_generateReportKey.Value))
-            {
-                GenerateReport();
-            }
-
-            if (Input.GetKeyDown(_toggleWindowKey.Value))
-            {
-                _combatWindow.Visible = !_combatWindow.Visible;
-            }
-        }
-
-        private void OnGUI()
-        {
-            if (_combatWindow == null || !IsInGameplay()) return;
-            _combatWindow.Draw();
-
-            // Persist window position and size if changed
-            if (_combatWindow.Visible)
-            {
-                var r = _combatWindow.WindowRect;
-                if (Math.Abs(r.x - _windowX.Value) > 1 || Math.Abs(r.y - _windowY.Value) > 1)
+                EncounterToggleKey = _encounterToggleKey.Value,
+                GenerateReportKey = _generateReportKey.Value,
+                ToggleWindowKey = _toggleWindowKey.Value,
+                IdleTimeout = _idleTimeout.Value,
+                EnableLogging = _enableLogging.Value,
+                OutputDirectory = _outputDirectory.Value,
+                OpenInOverlay = _openInOverlay.Value,
+                MaxLogSizeMB = _maxLogSizeMB.Value,
+                OpenReportOnExit = _openReportOnExit.Value,
+                LogEnvironmental = _logEnvironmental.Value,
+                WindowX = _windowX.Value,
+                WindowY = _windowY.Value,
+                WindowWidth = _windowWidth.Value,
+                WindowHeight = _windowHeight.Value,
+                WindowFontSize = _windowFontSize.Value,
+                PersistWindowRect = (x, y, w, h) =>
                 {
-                    _windowX.Value = r.x;
-                    _windowY.Value = r.y;
+                    _windowX.Value = x;
+                    _windowY.Value = y;
+                    _windowWidth.Value = w;
+                    _windowHeight.Value = h;
                 }
-                if (Math.Abs(r.width - _windowWidth.Value) > 1 || Math.Abs(r.height - _windowHeight.Value) > 1)
-                {
-                    _windowWidth.Value = r.width;
-                    _windowHeight.Value = r.height;
-                }
-            }
+            };
+
+            _core = new PluginCore(config, Paths.PluginPath);
+            _core.Initialize();
         }
 
-        private void OnCombatEvent(CombatEvent evt)
-        {
-            if (!_enableLogging.Value) return;
-
-            // Filter environmental damage if disabled
-            if (!_logEnvironmental.Value && evt.SourceId == "Environment")
-                return;
-
-            _writer.Enqueue(evt.ToJsonLine());
-        }
-
-        private void OnHealEvent(HealEvent evt)
-        {
-            if (!_enableLogging.Value) return;
-            _writer.Enqueue(evt.ToJsonLine());
-        }
-
-        private void OnEntityEvent(EntitySnapshot snapshot)
-        {
-            if (!_enableLogging.Value) return;
-            _writer.Enqueue(snapshot.ToJsonLine());
-        }
-
-        private void OnEncounterEnded()
-        {
-            if (_writer == null || _maxLogSizeMB.Value <= 0) return;
-
-            try
-            {
-                _writer.FlushSync();
-                var fileInfo = new FileInfo(_writer.FilePath);
-                if (!fileInfo.Exists) return;
-
-                long capBytes = (long)_maxLogSizeMB.Value * 1024 * 1024;
-                if (fileInfo.Length >= capBytes)
-                {
-                    string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                    string newPath = Path.Combine(_logDir, "combat_" + timestamp + ".jsonl");
-                    _writer.Rotate(newPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning("Failed to rotate log file: " + ex.Message);
-            }
-        }
-
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            EntityRegistry.ClearCache();
-
-            // Leaving gameplay (menu or quit) — rotate to a new JSONL file
-            // so each character session gets its own log.
-            if (scene.name == "Menu" || scene.name == "LoadScene")
-            {
-                EncounterTracker.EndCurrentEncounter();
-
-                try
-                {
-                    _writer?.FlushSync();
-                    string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                    string newPath = Path.Combine(_logDir, "combat_" + timestamp + ".jsonl");
-                    _writer?.Rotate(newPath);
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning("Failed to rotate log on scene change: " + ex.Message);
-                }
-
-                EntityRegistry.ClearReportEntities();
-                EncounterTracker.Reset();
-                _combatWindow?.Reset();
-                Patches.DamagePatches.ClearState();
-                Patches.HealPatches.ClearState();
-            }
-        }
-
-        private void GenerateReport(bool allowOpen = true)
-        {
-            try
-            {
-                // Flush all queued events to disk before reading
-                _writer?.FlushSync();
-
-                string reportPath = Path.Combine(_logDir,
-                    "report_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".html");
-
-                string entityJson = EntityRegistry.ToJson();
-                string encounterJson = EncounterTracker.ToJson();
-
-                HtmlReportGenerator.Generate(
-                    _writer.FilePath, reportPath, entityJson, encounterJson);
-
-
-                if (allowOpen && _openInOverlay.Value)
-                {
-                    try
-                    {
-                        System.Diagnostics.Process.Start(reportPath);
-                    }
-                    catch (Exception openEx)
-                    {
-                        Logger.LogWarning("Could not open report: " + openEx.Message);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Failed to generate report: " + ex.Message);
-            }
-        }
-
-        private void OnDestroy()
-        {
-            CombatEventBus.OnCombatEvent -= OnCombatEvent;
-            CombatEventBus.OnHealEvent -= OnHealEvent;
-            CombatEventBus.OnEntityEvent -= OnEntityEvent;
-            if (_combatWindow != null)
-            {
-                CombatEventBus.OnCombatEvent -= _combatWindow.OnCombatEvent;
-                CombatEventBus.OnHealEvent -= _combatWindow.OnHealEvent;
-                CombatEventBus.OnEntityEvent -= _combatWindow.OnEntityEvent;
-            }
-            EncounterTracker.OnEncounterEnded -= OnEncounterEnded;
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-
-            _harmony?.UnpatchSelf();
-
-            // Generate report on exit, but only if combat events were actually logged
-            try
-            {
-                if (_writer != null)
-                {
-                    _writer.FlushSync();
-                    var logFile = new FileInfo(_writer.FilePath);
-                    if (logFile.Exists && logFile.Length > 0)
-                        GenerateReport(_openReportOnExit.Value);
-                }
-            }
-            catch (Exception) { }
-
-            // Now dispose the writer (flushes remaining queue and closes file)
-            _writer?.Dispose();
-        }
+        private void Update() => _core?.OnUpdate();
+        private void OnGUI() => _core?.OnGUI();
+        private void OnDestroy() => _core?.Shutdown();
     }
 }
