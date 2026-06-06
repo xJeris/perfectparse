@@ -24,6 +24,9 @@ reference/
 # Claude Code instructions
 CLAUDE.md
 
+# Documentation (generated/local)
+docs/
+
 # Distribution / release artifacts
 dist/
 *.zip
