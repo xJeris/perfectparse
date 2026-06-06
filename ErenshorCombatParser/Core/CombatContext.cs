@@ -20,6 +20,13 @@ namespace ErenshorCombatParser.Core
 
         private static readonly Dictionary<Character, Entry> _entries = new Dictionary<Character, Entry>();
 
+        // Frame-scoped crit override. The game's DoSkill/DoSkillNoChecks methods
+        // call isCriticalAttack() but store the result in a local variable and
+        // never pass it through to DamageMe's _criticalHit parameter. We capture
+        // the crit result in a postfix on isCriticalAttack() and consume it in
+        // DamageMe_Postfix to correct the flag.
+        private static readonly Dictionary<Character, int> _critOverrides = new Dictionary<Character, int>();
+
         // Reusable list for cleanup to avoid allocations
         private static readonly List<Character> _staleKeys = new List<Character>();
         private static int _lastCleanupFrame = -1;
@@ -51,6 +58,17 @@ namespace ErenshorCombatParser.Core
                 }
                 for (int i = 0; i < _staleKeys.Count; i++)
                     _entries.Remove(_staleKeys[i]);
+                // Also prune stale crit overrides
+                _staleKeys.Clear();
+                foreach (var kvp in _critOverrides)
+                {
+                    if (kvp.Value < currentFrame - 1
+                        || ReferenceEquals(kvp.Key, null)
+                        || !kvp.Key)
+                        _staleKeys.Add(kvp.Key);
+                }
+                for (int i = 0; i < _staleKeys.Count; i++)
+                    _critOverrides.Remove(_staleKeys[i]);
             }
         }
 
@@ -62,6 +80,35 @@ namespace ErenshorCombatParser.Core
                     return entry.Source;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Record that the given entity scored a critical hit this frame.
+        /// Called from isCriticalAttack() postfix when it returns true.
+        /// </summary>
+        public static void SetCrit(Character attacker)
+        {
+            if (attacker == null) return;
+            _critOverrides[attacker] = Time.frameCount;
+        }
+
+        /// <summary>
+        /// Check and consume the crit override for this entity/frame.
+        /// Returns true if isCriticalAttack() returned true for this
+        /// entity in the current frame. Consuming prevents double-counting
+        /// if DamageMe is called multiple times per frame.
+        /// </summary>
+        public static bool ConsumeCrit(Character attacker)
+        {
+            if (attacker != null && _critOverrides.TryGetValue(attacker, out int frame))
+            {
+                if (frame == Time.frameCount)
+                {
+                    _critOverrides.Remove(attacker);
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

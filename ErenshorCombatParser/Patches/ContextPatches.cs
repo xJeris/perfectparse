@@ -236,5 +236,24 @@ namespace ErenshorCombatParser.Patches
                 catch (Exception) { }
             }
         }
+
+        // ============================================================
+        // Crit detection — Stats.isCriticalAttack() postfix
+        // The game's DoSkill/DoSkillNoChecks call isCriticalAttack()
+        // but never pass the result through DamageMe's _criticalHit
+        // parameter. We capture it here so DamageMe_Postfix can
+        // correct the flag.
+        // ============================================================
+        [HarmonyPatch(typeof(Stats), "isCriticalAttack")]
+        [HarmonyPostfix]
+        static void IsCriticalAttack_Postfix(bool __result, Stats __instance)
+        {
+            try
+            {
+                if (__result && __instance.Myself != null)
+                    CombatContext.SetCrit(__instance.Myself);
+            }
+            catch (Exception) { }
+        }
     }
 }

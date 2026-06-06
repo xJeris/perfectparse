@@ -206,6 +206,17 @@ namespace ErenshorCombatParser.Patches
                 else if (__result == -2) { eventType = "ShieldAbsorb"; finalAmount = 0; }
                 else return; // -1 invuln, -3 friendly, -5 mining, -6 chest — skip
 
+                // The game's DoSkill/DoSkillNoChecks call isCriticalAttack() but
+                // store the result in a local variable, never passing it through
+                // to DamageMe's _criticalHit parameter. ConsumeCrit() checks if
+                // isCriticalAttack() returned true for this attacker this frame.
+                // Always consume (even when _criticalHit is already true) to
+                // prevent stale overrides leaking into later DamageMe calls
+                // in the same frame (e.g. melee auto-attack crit followed by
+                // a backstab that shouldn't inherit it).
+                bool critOverride = CombatContext.ConsumeCrit(_attacker);
+                bool isCrit = _criticalHit || critOverride;
+
                 string source = CombatContext.Get(_attacker) ?? "Melee";
 
                 CombatEventBus.EmitDamage(new CombatEvent
@@ -217,7 +228,7 @@ namespace ErenshorCombatParser.Patches
                     DamageType = _dmgType.ToString(),
                     RawAmount = _incdmg,
                     FinalAmount = finalAmount,
-                    Critical = _criticalHit,
+                    Critical = isCrit,
                     Source = source
                 }, _attacker, __instance);
             }

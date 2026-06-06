@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PerfectParse Technical Reference</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --bg-card: #16213e;
+    --bg-code: #0f0f1a;
+    --border: #2a2a4a;
+    --text: #e0e0e0;
+    --text-muted: #8888aa;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --link: #64b5f6;
+    --heading: #ffffff;
+    --table-header: #1a1a3e;
+    --table-row-alt: #121a30;
+    --tag-damage: #e94560;
+    --tag-heal: #4caf50;
+    --tag-info: #42a5f5;
+    --tag-warn: #ff9800;
+    --tag-skip: #666;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+
+  .page-wrapper {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar / TOC */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    z-index: 100;
+  }
+
+  .sidebar h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar ul {
+    list-style: none;
+  }
+
+  .sidebar > ul > li {
+    margin-bottom: 4px;
+  }
+
+  .sidebar ul ul {
+    padding-left: 16px;
+  }
+
+  .sidebar a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    display: block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+
+  .sidebar a:hover, .sidebar a.active {
+    color: var(--link);
+    background: rgba(100, 181, 246, 0.08);
+  }
+
+  /* Main content */
+  .content {
+    margin-left: 280px;
+    max-width: 900px;
+    padding: 48px 48px 96px;
+  }
+
+  h1 {
+    font-size: 2.2em;
+    color: var(--heading);
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 1.05em;
+    margin-bottom: 48px;
+    line-height: 1.6;
+  }
+
+  h2 {
+    font-size: 1.5em;
+    color: var(--heading);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+    font-weight: 600;
+  }
+
+  h3 {
+    font-size: 1.15em;
+    color: var(--heading);
+    margin-top: 36px;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  h4 {
+    font-size: 1em;
+    color: var(--text-muted);
+    margin-top: 24px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.85em;
+  }
+
+  p {
+    margin-bottom: 14px;
+  }
+
+  a {
+    color: var(--link);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    background: var(--bg-code);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.88em;
+    border: 1px solid var(--border);
+  }
+
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 16px 0;
+    line-height: 1.5;
+  }
+
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.85em;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.92em;
+  }
+
+  th {
+    background: var(--table-header);
+    color: var(--heading);
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--border);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td {
+    background: var(--table-row-alt);
+  }
+
+  /* Lists */
+  ul, ol {
+    margin: 12px 0;
+    padding-left: 24px;
+  }
+
+  li {
+    margin-bottom: 6px;
+  }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    font-size: 0.72em;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+  }
+  .tag-damage { background: rgba(233,69,96,0.2); color: var(--tag-damage); }
+  .tag-heal { background: rgba(76,175,80,0.2); color: var(--tag-heal); }
+  .tag-info { background: rgba(66,165,245,0.2); color: var(--tag-info); }
+  .tag-warn { background: rgba(255,152,0,0.2); color: var(--tag-warn); }
+  .tag-skip { background: rgba(102,102,102,0.2); color: var(--tag-skip); }
+  .tag-prefix { background: rgba(156,39,176,0.15); color: #ce93d8; }
+  .tag-postfix { background: rgba(0,150,136,0.15); color: #80cbc4; }
+
+  /* Callout boxes */
+  .callout {
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    border-left: 4px solid;
+    font-size: 0.93em;
+  }
+
+  .callout-warn {
+    background: rgba(255,152,0,0.08);
+    border-color: var(--tag-warn);
+  }
+
+  .callout-info {
+    background: rgba(66,165,245,0.08);
+    border-color: var(--tag-info);
+  }
+
+  /* Architecture diagram */
+  .diagram {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px 32px;
+    margin: 20px 0;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.85em;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--text-muted);
+  }
+
+  .diagram .hl { color: var(--link); }
+  .diagram .hl2 { color: var(--accent); }
+  .diagram .hl3 { color: var(--tag-heal); }
+
+  /* Section cards */
+  .method-sig {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin: 12px 0 16px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.85em;
+    color: var(--link);
+  }
+
+  strong {
+    color: var(--heading);
+    font-weight: 600;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 40px 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .content { margin-left: 0; padding: 24px 20px 64px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <h2>Contents</h2>
+  <ul>
+    <li><a href="#architecture">Architecture Overview</a></li>
+    <li><a href="#pipeline">Event Pipeline</a></li>
+    <li><a href="#damage">Damage Tracking</a>
+      <ul>
+        <li><a href="#physical">Physical / Melee</a></li>
+        <li><a href="#magic">Magic / Spell</a></li>
+        <li><a href="#bleed">Bleed Damage</a></li>
+        <li><a href="#self-damage">Self-Damage</a></li>
+        <li><a href="#reflect">Damage Reflection</a></li>
+        <li><a href="#environmental">Environmental</a></li>
+        <li><a href="#finale">Finale (Instant Kill)</a></li>
+        <li><a href="#boss">Boss Mechanics</a></li>
+      </ul>
+    </li>
+    <li><a href="#healing">Heal Tracking</a>
+      <ul>
+        <li><a href="#direct-heals">Direct Heals</a></li>
+        <li><a href="#hot">Healing Over Time</a></li>
+        <li><a href="#simple-heals">Simple Heals</a></li>
+        <li><a href="#mana">Mana Restoration</a></li>
+        <li><a href="#resonance">Resonance Procs</a></li>
+      </ul>
+    </li>
+    <li><a href="#attribution">Source Attribution</a>
+      <ul>
+        <li><a href="#context">CombatContext</a></li>
+        <li><a href="#bleed-names">Bleed Skill Names</a></li>
+      </ul>
+    </li>
+    <li><a href="#entities">Entity Identification</a></li>
+    <li><a href="#filtering">Relevance Filtering</a></li>
+    <li><a href="#return-values">DamageMe Return Values</a></li>
+    <li><a href="#models">Event Models</a></li>
+    <li><a href="#jsonl">JSONL Output</a></li>
+    <li><a href="#edge-cases">Edge Cases</a></li>
+  </ul>
+</nav>
+
+<!-- Main content -->
+<main class="content">
+
+<h1>PerfectParse Technical Reference</h1>
+<p class="subtitle">How PerfectParse intercepts, categorizes, and logs combat events from Erenshor. Intended for mod developers who want to understand the event pipeline, extend it, or build compatible tooling.</p>
+
+<!-- Architecture -->
+<h2 id="architecture">Architecture Overview</h2>
+
+<div class="diagram"><span class="hl">Game Methods</span>
+    |
+    v
+<span class="hl2">Harmony Patches</span> (Prefix / Postfix)
+    |
+    v
+<span class="hl">CombatEventBus</span> (filters, assigns encounter IDs)
+    |
+    +&mdash;&mdash;&gt; <span class="hl3">JsonLineWriter</span>      (background thread &rarr; JSONL file)
+    +&mdash;&mdash;&gt; <span class="hl3">EncounterTracker</span>    (encounter boundaries)
+    +&mdash;&mdash;&gt; <span class="hl3">CombatWindow</span>       (live IMGUI display)</div>
+
+<p>All patches feed into <code>CombatEventBus</code>, which decides whether an event is relevant (involves the player or their group), assigns it to the current encounter, and dispatches it to subscribers.</p>
+
+<p><strong>Patch application strategy:</strong></p>
+<ul>
+  <li><strong>DamagePatches</strong> and <strong>HealPatches</strong> are applied manually (not via <code>[HarmonyPatch]</code> attributes) for reliability.</li>
+  <li><strong>ContextPatches</strong> use attribute-based patching.</li>
+  <li><strong>BossMechanicPatches</strong> are applied manually with independent try/catch per patch so a missing game class does not prevent others from loading.</li>
+</ul>
+
+<hr>
+
+<!-- Pipeline -->
+<h2 id="pipeline">Event Pipeline</h2>
+
+<ol>
+  <li>A <span class="tag tag-prefix">prefix</span> patch fires before the game method executes. Used to capture pre-call state (HP snapshots, attack type context).</li>
+  <li>The game method runs.</li>
+  <li>A <span class="tag tag-postfix">postfix</span> patch fires after the game method. It reads the return value and pre-call state, builds a <code>CombatEvent</code> or <code>HealEvent</code>, and calls <code>CombatEventBus.EmitDamage()</code> or <code>CombatEventBus.EmitHeal()</code>.</li>
+  <li>The bus filters for relevance, assigns <code>EncounterId</code>, and invokes event subscribers.</li>
+  <li><code>JsonLineWriter</code> serializes the event to JSONL on a background thread (never blocks the game thread).</li>
+</ol>
+
+<hr>
+
+<!-- Damage Tracking -->
+<h2 id="damage">Damage Tracking</h2>
+
+<!-- Physical -->
+<h3 id="physical">Physical / Melee Damage <span class="tag tag-damage">Damage</span></h3>
+
+<div class="method-sig">Character.DamageMe(int _incdmg, int _dmgType, Character _attacker, bool _criticalHit)</div>
+
+<p>The <span class="tag tag-postfix">postfix</span> reads the return value to determine outcome:</p>
+
+<table>
+  <thead><tr><th>Return Value</th><th>Event Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>&gt; 0</code></td><td><span class="tag tag-damage">Damage</span></td><td>Hit landed, value is post-mitigation damage</td></tr>
+    <tr><td><code>0</code></td><td><span class="tag tag-info">Miss</span></td><td>Attack missed (dodge/parry)</td></tr>
+    <tr><td><code>-2</code></td><td><span class="tag tag-info">ShieldAbsorb</span></td><td>Spell shield absorbed the attack</td></tr>
+    <tr><td><code>-1</code></td><td><span class="tag tag-skip">skipped</span></td><td>Target is invulnerable</td></tr>
+    <tr><td><code>-3</code></td><td><span class="tag tag-skip">skipped</span></td><td>Friendly fire</td></tr>
+    <tr><td><code>-5</code></td><td><span class="tag tag-skip">skipped</span></td><td>Mining node</td></tr>
+    <tr><td><code>-6</code></td><td><span class="tag tag-skip">skipped</span></td><td>Treasure chest</td></tr>
+  </tbody>
+</table>
+
+<p>The attack source string (e.g. <code>"Melee"</code>, <code>"Skill:Backstab"</code>) is resolved from <code>CombatContext</code>. If no context is set, it defaults to <code>"Melee"</code>.</p>
+
+<p><strong>Fields captured:</strong> <code>_incdmg</code> as <code>RawAmount</code>, return value as <code>FinalAmount</code>, <code>_dmgType</code> mapped to a string (<code>Physical</code>, <code>Magic</code>, <code>Elemental</code>, <code>Void</code>, <code>Poison</code>), <code>_criticalHit</code> as <code>Critical</code>.</p>
+
+<!-- Magic -->
+<h3 id="magic">Magic / Spell Damage <span class="tag tag-damage">Damage</span></h3>
+
+<div class="method-sig">Character.MagicDamageMe(int _incdmg, int _dmgType, Character _attacker)</div>
+
+<table>
+  <thead><tr><th>Return Value</th><th>Event Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>&gt; 0</code></td><td><span class="tag tag-damage">Damage</span></td><td>Spell hit</td></tr>
+    <tr><td><code>0</code></td><td><span class="tag tag-info">Resist</span></td><td>Spell fully resisted</td></tr>
+  </tbody>
+</table>
+
+<p>Context defaults to <code>"Spell:Unknown"</code> if no <code>CombatContext</code> is set. Spells never crit in this game, so <code>Critical</code> is always <code>false</code>.</p>
+
+<!-- Bleed -->
+<h3 id="bleed">Bleed Damage <span class="tag tag-damage">Damage</span> <span class="tag tag-warn">Complex</span></h3>
+
+<div class="method-sig">Character.BleedDamageMe(Character _attacker, int _incdmg, int _dmgType, Spell _spell, bool _crit)</div>
+
+<p>This is the most complex damage path because the game passes <code>_attacker = null</code> for all bleed ticks (see <code>Stats.cs</code> line 1527). PerfectParse recovers the original caster using a queue-based approach.</p>
+
+<h4>How bleed owner recovery works</h4>
+
+<p><code>Stats.TickEffects()</code> iterates status effect slots 0 through 29 and calls <code>BleedDamageMe</code> once per active bleed. PerfectParse exploits this deterministic order:</p>
+
+<ol>
+  <li><strong>First <code>BleedDamageMe</code> call for a given target in a frame:</strong> The <span class="tag tag-prefix">prefix</span> scans all 30 status effect slots and enqueues every bleed owner (with spell name) in slot order.</li>
+  <li><strong>Each subsequent call:</strong> The <span class="tag tag-postfix">postfix</span> dequeues the next entry from the queue.</li>
+</ol>
+
+<p>Because the queue is built in the same slot order that <code>TickEffects</code> uses, the dequeue order matches the call order 1:1. This correctly attributes bleed damage even with multiple concurrent bleed sources (e.g. two Stormcallers bleeding the same raid boss).</p>
+
+<p>The event source string is formatted as <code>"Bleed:SpellName"</code> (e.g. <code>"Bleed:Razor Tipped Arrow"</code>). See <a href="#bleed-names">Bleed Skill Name Resolution</a> for how the spell name is determined.</p>
+
+<div class="callout callout-warn">
+  <strong>Known caveat:</strong> The first bleed tick in each frame gets slightly higher damage because it is calculated before the first tick reduces the target's HP.
+</div>
+
+<h4>Bleed skill map cleanup</h4>
+
+<p><code>_bleedSkillMap</code> entries are pruned once per frame when the map exceeds 16 entries. Entries with destroyed Unity objects (checked via <code>ReferenceEquals(obj, null) || !obj</code>) are removed.</p>
+
+<!-- Self-Damage -->
+<h3 id="self-damage">Self-Damage <span class="tag tag-damage">Damage</span></h3>
+
+<p>Two methods handle self-inflicted damage where source and target are the same entity:</p>
+
+<table>
+  <thead><tr><th>Patched Method</th><th>Source String</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><code>Character.SelfDamageMe()</code></td><td><code>"SelfDamage:Stance"</code></td><td>Berserker stance recoil</td></tr>
+    <tr><td><code>Character.SelfDamageMeFlat()</code></td><td><code>"SelfDamage:Flat"</code></td><td>Ability HP costs</td></tr>
+  </tbody>
+</table>
+
+<p>Both emit <code>Damage</code> events.</p>
+
+<!-- Damage Reflection -->
+<h3 id="reflect">Damage Reflection <span class="tag tag-damage">Reflect</span></h3>
+
+<div class="method-sig">Character.DamageShieldTaken(int, Character _giver) &mdash; <span class="tag tag-prefix">prefix</span></div>
+
+<p>When a protective shield (e.g. Thorn Shield) reflects damage back to the attacker, this emits a <code>Reflect</code> event. The source is the shield owner (<code>_giver</code>) and the target is the attacker. Damage type is always <code>Magic</code>.</p>
+
+<!-- Environmental -->
+<h3 id="environmental">Environmental Damage <span class="tag tag-damage">Damage</span></h3>
+
+<div class="method-sig">Character.EnvironmentalDamageMe(int _incdmg)</div>
+
+<p>Lava, traps, fire pits, and other hazards. The <code>SourceId</code> is set to the literal string <code>"Environment"</code> (no attacker character exists). Return value <code>-1</code> (invulnerable) is skipped.</p>
+
+<!-- Finale -->
+<h3 id="finale">Finale (Instant Kill) <span class="tag tag-damage">Finale</span> <span class="tag tag-warn">Special</span></h3>
+
+<div class="method-sig">WandBolt.DeliverDamage() &mdash; <span class="tag tag-prefix">prefix</span> + <span class="tag tag-postfix">postfix</span></div>
+
+<p>The Finale ascension mechanic sets <code>CurrentHP = 0</code> directly without calling <code>DamageMe</code>, so it would otherwise be invisible to the parser.</p>
+
+<p><strong>Detection logic</strong> (all conditions must be true):</p>
+<ul>
+  <li>Target HP is 0 after delivery</li>
+  <li>Target HP was &gt; 0 before delivery</li>
+  <li>Target HP was &le; 15% of max HP before delivery</li>
+</ul>
+
+<p>Emits a <code>Finale</code> event with <code>Source = "Wand (Finale)"</code> and <code>RawAmount</code> / <code>FinalAmount</code> set to the pre-delivery HP.</p>
+
+<!-- Boss Mechanics -->
+<h3 id="boss">Boss Mechanic Damage <span class="tag tag-damage">Damage</span></h3>
+
+<p>Several boss scripts call <code>DamageMe</code> / <code>MagicDamageMe</code> directly without going through <code>SpellVessel.ResolveSpell</code>. Without dedicated patches, this damage would show as unnamed <code>"Melee"</code> attacks.</p>
+
+<p><code>BossMechanicPatches.cs</code> provides <span class="tag tag-prefix">prefix</span> patches that set <code>CombatContext</code> before the damage call. Each patch is wrapped in its own try/catch so a missing game class does not prevent others from loading.</p>
+
+<table>
+  <thead><tr><th>Game Class</th><th>Method</th><th>Context Set</th></tr></thead>
+  <tbody>
+    <tr><td><code>AEEvent</code></td><td><code>TriggerAE()</code></td><td><code>"Spell:{DamageReason}"</code> (or <code>"Spell:AoE"</code>)</td></tr>
+    <tr><td><code>AEEvent2</code></td><td><code>Update()</code></td><td><code>"Spell:{DamageReason}"</code> (or <code>"Spell:AoE"</code>)</td></tr>
+    <tr><td><code>NPCFightEvent</code></td><td><code>BreathAttack()</code></td><td><code>"Spell:Breath Attack"</code></td></tr>
+    <tr><td><code>SableheartEvent</code></td><td><code>Update()</code></td><td><code>"Spell:Sableheart's Curse"</code></td></tr>
+    <tr><td><code>AstraBreathScriot</code></td><td><code>Update()</code></td><td><code>"Spell:Dragon Breath"</code> (or <code>"Spell:{OverrideBreath}"</code>)</td></tr>
+    <tr><td><code>FernHighPriest</code></td><td><code>Update()</code></td><td><code>"Spell:Shared Pain"</code></td></tr>
+    <tr><td><code>InfernoEnergy</code></td><td><code>Update()</code></td><td><code>"Spell:Twin Explosion"</code></td></tr>
+    <tr><td><code>DeathTouch</code></td><td><code>Update()</code></td><td><code>"Spell:Death Touch"</code></td></tr>
+  </tbody>
+</table>
+
+<p>Private fields are accessed via Harmony's <code>Traverse.Create(__instance).Field(name).GetValue&lt;T&gt;()</code>.</p>
+
+<hr>
+
+<!-- Heal Tracking -->
+<h2 id="healing">Heal Tracking</h2>
+
+<!-- Direct Heals -->
+<h3 id="direct-heals">Direct Heals <span class="tag tag-heal">Heal</span></h3>
+
+<div class="method-sig">Stats.HealMe(Spell _spell, int _amt, bool _isCrit, bool _isMana, Character _source) &mdash; <span class="tag tag-postfix">postfix</span></div>
+
+<p>This handles full spell-based heals (e.g. Healing Touch, the heal component of Group Regrowth).</p>
+
+<ul>
+  <li>Zero-amount heals without mana restore are skipped (these are HoT-only spell applications).</li>
+  <li><code>_amt</code> is captured as <code>RawAmount</code>, the method's return value (actual HP gained) as <code>ActualAmount</code>.</li>
+  <li>If <code>_isMana</code> is true, the event type is <code>ManaRestore</code> instead of <code>Heal</code>.</li>
+  <li>The <code>IsResonance</code> flag is read from <code>ResonanceContext</code> (see <a href="#resonance">Resonance Procs</a>).</li>
+</ul>
+
+<!-- HoT -->
+<h3 id="hot">Healing Over Time (HoT) <span class="tag tag-heal">HoT</span> <span class="tag tag-warn">Complex</span></h3>
+
+<div class="method-sig">Stats.TickEffects() &mdash; <span class="tag tag-prefix">prefix</span> + <span class="tag tag-postfix">postfix</span></div>
+
+<p>HoT tracking is complex because <code>TickEffects</code> processes all active HoTs in a single call and only the total HP delta is observable.</p>
+
+<h4>Prefix (before tick)</h4>
+
+<ol>
+  <li>Captures pre-tick HP.</li>
+  <li>Scans all 30 status effect slots looking for active HoTs matching these criteria:
+    <ul>
+      <li><code>TargetHealing &gt; 0</code></li>
+      <li><code>Duration &gt; 0</code></li>
+      <li><code>DamageType == Physical</code></li>
+      <li>Not blocked by <code>CombatStance.StopRegen</code></li>
+      <li>Not a <code>WornEffect</code> (equipment passive regen)</li>
+    </ul>
+  </li>
+  <li>For each qualifying HoT, pre-calculates the expected tick amount:
+    <pre><code>expected = effect.TargetHealing
+         + (owner.WisScaleMod / 100) * owner.CurrentWis * 10
+         + (if Druid: owner.CurrentWis)</code></pre>
+  </li>
+  <li>Stores a list of <code>HoTInfo</code> structs: <code>(SpellName, Owner, ExpectedAmount)</code>.</li>
+</ol>
+
+<h4>Postfix (after tick)</h4>
+
+<ol>
+  <li>Calculates actual delta: <code>CurrentHP - preTickHP</code>.</li>
+  <li>If delta &gt; 0, distributes it proportionally across HoTs based on expected amounts:
+    <pre><code>For each HoT:
+  share = delta * (expected / totalExpected)
+Last HoT gets the remainder to prevent rounding drift.</code></pre>
+  </li>
+  <li>Emits a <code>HoT</code> event for each contributing HoT.</li>
+  <li>Owner entity resolution is deferred until actual healing occurs (avoids registering destroyed entities that contributed 0).</li>
+  <li>Fallback: if no HoT slots were found but HP increased, a generic <code>"HoT:Unknown"</code> event is emitted.</li>
+</ol>
+
+<div class="callout callout-info">
+  <strong>Example:</strong> Two HoTs ticking with expected amounts 100 and 50, actual HP gained is 90:<br>
+  &bull; HoT 1: <code>90 &times; (100 / 150)</code> = 60<br>
+  &bull; HoT 2: <code>90 &minus; 60</code> = 30 (remainder)
+</div>
+
+<!-- Simple Heals -->
+<h3 id="simple-heals">Simple Heals (Lifesteal / Regen) <span class="tag tag-heal">HealSimple</span></h3>
+
+<div class="method-sig">Stats.HealMe(int _amt) &mdash; <span class="tag tag-prefix">prefix</span> + <span class="tag tag-postfix">postfix</span></div>
+
+<p>This handles self-heals from lifesteal, lifetap, and regen effects.</p>
+
+<ul>
+  <li><span class="tag tag-prefix">Prefix</span> captures pre-heal HP.</li>
+  <li><span class="tag tag-postfix">Postfix</span> calculates actual healed = <code>CurrentHP - preHP</code>.</li>
+  <li>Source and target are the same entity.</li>
+  <li>Emits <code>HealSimple</code> event type.</li>
+</ul>
+
+<!-- Mana -->
+<h3 id="mana">Mana Restoration <span class="tag tag-heal">ManaRestore</span></h3>
+
+<p>Mana restores flow through the same <code>Stats.HealMe(Spell, int, bool, bool, Character)</code> method as direct heals, with the <code>_isMana</code> parameter set to <code>true</code>. These are emitted as <code>ManaRestore</code> events with the same fields as <code>Heal</code> events.</p>
+
+<!-- Resonance -->
+<h3 id="resonance">Resonance Procs <span class="tag tag-info">Flag</span></h3>
+
+<div class="method-sig">SpellVessel.ResolveSpell() &mdash; <span class="tag tag-prefix">prefix</span> + <span class="tag tag-postfix">postfix</span> (in HealPatches)</div>
+
+<p>Resonance is a mechanic where spells can proc additional effects.</p>
+
+<ul>
+  <li><span class="tag tag-prefix">Prefix</span> reads the private <code>SpellVessel.resonating</code> field via reflection.</li>
+  <li>If true, sets <code>ResonanceContext.IsResonance = true</code>.</li>
+  <li><code>HealMe</code> postfix reads this flag and includes it on the <code>HealEvent</code>.</li>
+  <li><span class="tag tag-postfix">Postfix</span> clears the flag.</li>
+</ul>
+
+<p>This allows reports to distinguish resonance-triggered heals from normal casts.</p>
+
+<hr>
+
+<!-- Attribution -->
+<h2 id="attribution">Attack Source Attribution</h2>
+
+<h3 id="context">CombatContext (Frame-Scoped)</h3>
+
+<p><code>CombatContext</code> is the mechanism that connects "what kind of attack is happening" to "what damage was dealt." It is set by <span class="tag tag-prefix">prefix</span> patches (before the game method runs) and read by <span class="tag tag-postfix">postfix</span> patches (after damage is calculated).</p>
+
+<p><strong>Design properties:</strong></p>
+<ul>
+  <li><strong>Keyed by attacker Character instance</strong> &mdash; multiple entities can act in the same frame without conflicts.</li>
+  <li><strong>Auto-expires after 1 frame</strong> &mdash; no manual cleanup needed.</li>
+  <li><strong>Lazy cleanup</strong> &mdash; stale entries (destroyed Unity objects, old frames) are removed once per frame when the dictionary exceeds 16 entries.</li>
+</ul>
+
+<h4>Context sources</h4>
+
+<table>
+  <thead><tr><th>Patched Method</th><th>Context Value</th></tr></thead>
+  <tbody>
+    <tr><td><code>PlayerCombat.HandleDamageResult()</code></td><td><code>"Melee"</code></td></tr>
+    <tr><td><code>NPC.PerformMeleeHit()</code></td><td><code>"Melee"</code></td></tr>
+    <tr><td><code>NPC.PerformMeleeHitPreCalc()</code></td><td><code>"Melee"</code></td></tr>
+    <tr><td><code>UseSkill.DoSkill()</code></td><td><code>"Skill:{SkillName}"</code></td></tr>
+    <tr><td><code>UseSkill.DoSkillNoChecks()</code></td><td><code>"Skill:{SkillName}"</code></td></tr>
+    <tr><td><code>SpellVessel.ResolveSpell()</code></td><td><code>"Spell:{SpellName}"</code></td></tr>
+    <tr><td><code>WandBolt.DeliverDamage()</code></td><td><code>"Bow"</code> (Physical) or <code>"Wand"</code> (Magic)</td></tr>
+    <tr><td><code>NPC.DoBowAttack()</code> (all overloads)</td><td><code>"Bow"</code></td></tr>
+    <tr><td>Boss mechanic patches</td><td>Various (see <a href="#boss">Boss Mechanics</a>)</td></tr>
+  </tbody>
+</table>
+
+<h4>Source string taxonomy</h4>
+
+<table>
+  <thead><tr><th>Prefix</th><th>Meaning</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><code>Melee</code></td><td>Melee auto-attack</td><td><code>"Melee"</code></td></tr>
+    <tr><td><code>Bow</code></td><td>Physical ranged (projectile)</td><td><code>"Bow"</code></td></tr>
+    <tr><td><code>Wand</code></td><td>Magical ranged (wand bolt)</td><td><code>"Wand"</code></td></tr>
+    <tr><td><code>Skill:</code></td><td>Named skill</td><td><code>"Skill:Backstab"</code></td></tr>
+    <tr><td><code>Spell:</code></td><td>Named spell</td><td><code>"Spell:Fire Bolt"</code></td></tr>
+    <tr><td><code>Bleed:</code></td><td>Bleed tick from named spell</td><td><code>"Bleed:Razor Tipped Arrow"</code></td></tr>
+    <tr><td><code>SelfDamage:</code></td><td>Self-inflicted</td><td><code>"SelfDamage:Stance"</code></td></tr>
+    <tr><td><code>Wand (Finale)</code></td><td>Finale instant kill</td><td><code>"Wand (Finale)"</code></td></tr>
+  </tbody>
+</table>
+
+<!-- Bleed Skill Name Resolution -->
+<h3 id="bleed-names">Bleed Skill Name Resolution</h3>
+
+<p>The game separates skills from their effects at the data level. For example:</p>
+
+<pre><code>Skill: "Arterial Razor"
+  -&gt; CastOnTarget spell: "Razor Tipped Arrow"
+    -&gt; StatusEffect: "Bleed"</code></pre>
+
+<p>PerfectParse resolves the display name using a three-layer priority system:</p>
+
+<table>
+  <thead><tr><th>Priority</th><th>Source</th><th>When It Fires</th></tr></thead>
+  <tbody>
+    <tr><td><strong>1 (highest)</strong></td><td><code>UseSkill.DoSkill</code> / <code>DoSkillNoChecks</code></td><td>Sets <code>_pendingBleedSkill[caster]</code> if the skill applies a bleed</td></tr>
+    <tr><td><strong>2</strong></td><td><code>CastSpell.StartSpellFromProc</code></td><td>Sets pending if not already set (proc-triggered bleeds)</td></tr>
+    <tr><td><strong>3 (lowest)</strong></td><td><code>SpellVessel.ResolveSpell</code></td><td>Sets pending if neither above set</td></tr>
+  </tbody>
+</table>
+
+<p>When <code>Character.AddStatusEffect</code> fires for a bleed spell, the <code>_pendingBleedSkill</code> value is persisted into <code>_bleedSkillMap</code> keyed by <code>(target, bleedSpell, owner)</code>. <code>BleedDamageMe</code> postfix looks up this map to get the display name.</p>
+
+<p><strong>Result:</strong> Bleed ticks display as <code>"Bleed:Razor Tipped Arrow"</code> (the spell-level name, which matches what the game uses in its own combat log), not the skill book name or generic "Bleed."</p>
+
+<hr>
+
+<!-- Entities -->
+<h2 id="entities">Entity Identification</h2>
+
+<h4>Entity ID format</h4>
+
+<table>
+  <thead><tr><th>Entity Type</th><th>ID Format</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Player</td><td><code>"Player"</code></td><td><code>"Player"</code></td></tr>
+    <tr><td>Sim (grouped/raided NPC ally)</td><td><code>"Sim:{Name}"</code></td><td><code>"Sim:Bowen"</code></td></tr>
+    <tr><td>Pet / Summoned</td><td><code>"Pet:{InstanceID}:{Name}"</code></td><td><code>"Pet:123456:Dragon"</code></td></tr>
+    <tr><td>NPC (enemy)</td><td><code>"NPC:{InstanceID}:{Name}"</code></td><td><code>"NPC:456789:Sableheart"</code></td></tr>
+  </tbody>
+</table>
+
+<p>Instance IDs disambiguate multiple spawns of the same named entity.</p>
+
+<h4>Entity type detection</h4>
+
+<pre><code>if (!character.isNPC)                        -&gt; Player
+if (stats.Charmed || npc.SummonedByPlayer)   -&gt; Pet
+if (npc.SimPlayer)                           -&gt; SimPlayer
+else                                         -&gt; NPC</code></pre>
+
+<h4>EntityRegistry storage</h4>
+
+<p>Two dictionaries serve different purposes:</p>
+
+<ul>
+  <li><strong><code>_cache</code></strong> (keyed by Unity instance ID): Deduplication during gameplay. Cleared on zone change.</li>
+  <li><strong><code>_reportEntities</code></strong> (keyed by entity ID string): Persists across zone changes for HTML report generation. Never cleared.</li>
+</ul>
+
+<h4>Class name remapping</h4>
+
+<p>Applied only to Player and SimPlayer entities:</p>
+
+<table>
+  <thead><tr><th>Code Name</th><th>Display Name</th></tr></thead>
+  <tbody>
+    <tr><td><code>Duelist</code></td><td><code>Windblade</code></td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<!-- Filtering -->
+<h2 id="filtering">Event Relevance Filtering</h2>
+
+<p><code>CombatEventBus</code> silently drops events that do not involve the player or their group. An entity is relevant if:</p>
+
+<ol>
+  <li><strong>Player</strong> (<code>isNPC == false</code>): Always relevant.</li>
+  <li><strong>Pet/Summoned</strong> (<code>Charmed</code> or <code>SummonedByPlayer</code>): Always relevant.</li>
+  <li><strong>Sim Player</strong> (<code>SimPlayer == true</code>): Relevant if <code>InGroup</code> or <code>InRaid</code>.</li>
+  <li><strong>NPC</strong>: Only relevant as a target if the source is relevant (or vice versa).</li>
+</ol>
+
+<p><code>InRaid</code> is checked via reflection for playtest/retail compatibility.</p>
+
+<hr>
+
+<!-- Return Values -->
+<h2 id="return-values">DamageMe Return Value Reference</h2>
+
+<table>
+  <thead><tr><th>Value</th><th>Meaning</th><th>PerfectParse Behavior</th></tr></thead>
+  <tbody>
+    <tr><td><code>&gt; 0</code></td><td>Damage dealt (post-mitigation)</td><td>Emit <span class="tag tag-damage">Damage</span> event</td></tr>
+    <tr><td><code>0</code></td><td>Miss (DamageMe) / Resist (MagicDamageMe)</td><td>Emit <span class="tag tag-info">Miss</span> or <span class="tag tag-info">Resist</span></td></tr>
+    <tr><td><code>-1</code></td><td>Invulnerable</td><td><span class="tag tag-skip">Skip</span></td></tr>
+    <tr><td><code>-2</code></td><td>Spell shield absorbed</td><td>Emit <span class="tag tag-info">ShieldAbsorb</span></td></tr>
+    <tr><td><code>-3</code></td><td>Friendly fire</td><td><span class="tag tag-skip">Skip</span></td></tr>
+    <tr><td><code>-5</code></td><td>Mining node</td><td><span class="tag tag-skip">Skip</span></td></tr>
+    <tr><td><code>-6</code></td><td>Treasure chest</td><td><span class="tag tag-skip">Skip</span></td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<!-- Event Models -->
+<h2 id="models">Event Models</h2>
+
+<h3>CombatEvent</h3>
+
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>Timestamp</code></td><td><code>long</code></td><td>Unix milliseconds</td></tr>
+    <tr><td><code>Type</code></td><td><code>string</code></td><td><code>Damage</code>, <code>Miss</code>, <code>Resist</code>, <code>ShieldAbsorb</code>, <code>Reflect</code>, <code>Finale</code></td></tr>
+    <tr><td><code>SourceId</code></td><td><code>string</code></td><td>Attacker entity ID</td></tr>
+    <tr><td><code>TargetId</code></td><td><code>string</code></td><td>Defender entity ID</td></tr>
+    <tr><td><code>DamageType</code></td><td><code>string</code></td><td><code>Physical</code>, <code>Magic</code>, <code>Elemental</code>, <code>Void</code>, <code>Poison</code></td></tr>
+    <tr><td><code>RawAmount</code></td><td><code>int</code></td><td>Pre-mitigation damage</td></tr>
+    <tr><td><code>FinalAmount</code></td><td><code>int</code></td><td>Post-mitigation damage</td></tr>
+    <tr><td><code>Critical</code></td><td><code>bool</code></td><td>Critical hit flag</td></tr>
+    <tr><td><code>Source</code></td><td><code>string</code></td><td>Attack source (see <a href="#context">taxonomy</a>)</td></tr>
+    <tr><td><code>EncounterId</code></td><td><code>int</code></td><td>Encounter this event belongs to</td></tr>
+  </tbody>
+</table>
+
+<h3>HealEvent</h3>
+
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>Timestamp</code></td><td><code>long</code></td><td>Unix milliseconds</td></tr>
+    <tr><td><code>Type</code></td><td><code>string</code></td><td><code>Heal</code>, <code>HoT</code>, <code>HealSimple</code>, <code>ManaRestore</code></td></tr>
+    <tr><td><code>SourceId</code></td><td><code>string</code></td><td>Healer entity ID</td></tr>
+    <tr><td><code>TargetId</code></td><td><code>string</code></td><td>Target entity ID</td></tr>
+    <tr><td><code>SpellName</code></td><td><code>string</code></td><td>Spell or ability name</td></tr>
+    <tr><td><code>RawAmount</code></td><td><code>int</code></td><td>Expected heal amount</td></tr>
+    <tr><td><code>ActualAmount</code></td><td><code>int</code></td><td>Actual HP/mana gained</td></tr>
+    <tr><td><code>Critical</code></td><td><code>bool</code></td><td>Critical hit flag</td></tr>
+    <tr><td><code>IsMana</code></td><td><code>bool</code></td><td>True if mana restore</td></tr>
+    <tr><td><code>IsResonance</code></td><td><code>bool</code></td><td>True if triggered by resonance proc</td></tr>
+    <tr><td><code>EncounterId</code></td><td><code>int</code></td><td>Encounter this event belongs to</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<!-- JSONL -->
+<h2 id="jsonl">JSONL Output Format</h2>
+
+<p>Each line is a self-contained JSON object. The <code>"ev"</code> field distinguishes event types.</p>
+
+<h4>Combat event</h4>
+
+<pre><code>{
+  "ev": "combat",
+  "t": 1700000000000,
+  "type": "Damage",
+  "src": "Player",
+  "tgt": "NPC:456789:Sableheart",
+  "dmgType": "Physical",
+  "raw": 250,
+  "final": 200,
+  "crit": true,
+  "source": "Skill:Backstab",
+  "enc": 1
+}</code></pre>
+
+<h4>Heal event</h4>
+
+<pre><code>{
+  "ev": "heal",
+  "t": 1700000000000,
+  "type": "Heal",
+  "src": "Sim:Bowen",
+  "tgt": "Player",
+  "spell": "Healing Touch",
+  "raw": 500,
+  "actual": 480,
+  "crit": true,
+  "reso": true,
+  "enc": 1
+}</code></pre>
+
+<h4>Entity snapshot</h4>
+
+<pre><code>{
+  "ev": "entity",
+  "id": "Pet:123456:Dragon",
+  "name": "Dragon",
+  "class": "Magic Beast",
+  "level": 20,
+  "type": "Pet",
+  "master": "Player"
+}</code></pre>
+
+<hr>
+
+<!-- Edge Cases -->
+<h2 id="edge-cases">Known Edge Cases</h2>
+
+<div class="callout callout-warn">
+  <strong>Mizuki dagger throw:</strong> <code>MizukiEvent.SetNewAggro</code> is a coroutine that calls <code>DamageMe</code> after <code>yield return new WaitForFixedUpdate()</code>. The frame-scoped <code>CombatContext</code> expires before the damage call fires, so the dagger throw appears as <code>"Melee"</code>. Mizuki also has real melee attacks, making it indistinguishable without component-level checks. Left as-is.
+</div>
+
+<div class="callout callout-warn">
+  <strong>First bleed tick damage:</strong> The first bleed tick in a frame is calculated on the target's current HP before any bleed tick reduces it, resulting in slightly higher damage than subsequent ticks in the same frame.
+</div>
+
+<div class="callout callout-info">
+  <strong>HoT rounding:</strong> When multiple HoTs tick simultaneously, proportional distribution can produce fractional values. The last HoT in the list receives the remainder to prevent drift.
+</div>
+
+<div class="callout callout-info">
+  <strong>Destroyed entity references:</strong> Unity overrides <code>==</code> for destroyed objects. All null checks for Unity objects use <code>ReferenceEquals(obj, null) || !obj</code> to correctly detect destruction.
+</div>
+
+</main>
+</div>
+
+<script>
+// Simple scroll spy for sidebar
+document.addEventListener('DOMContentLoaded', function() {
+  const links = document.querySelectorAll('.sidebar a');
+  const sections = [];
+  links.forEach(function(link) {
+    const id = link.getAttribute('href');
+    if (id && id.startsWith('#')) {
+      const el = document.getElementById(id.slice(1));
+      if (el) sections.push({ link: link, el: el });
+    }
+  });
+
+  function updateActive() {
+    var atBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - 50);
+    var current = sections[0];
+    if (atBottom) {
+      current = sections[sections.length - 1];
+    } else {
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i].el.getBoundingClientRect().top <= 80) {
+          current = sections[i];
+        }
+      }
+    }
+    links.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', updateActive);
+  updateActive();
+});
+</script>
+</body>
+</html>
