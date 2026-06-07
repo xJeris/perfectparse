@@ -4,9 +4,8 @@ using UnityEngine;
 namespace ErenshorCombatParser.Core
 {
     /// <summary>
-    /// Loader-agnostic configuration container. Each entry point populates
-    /// this from its own config system (BepInEx Config.Bind or Lunaris
-    /// Config.Read) and passes it to PluginCore.
+    /// Configuration container populated by LunarisEntry from the registered
+    /// LunarisConfig and passed to PluginCore.
     /// </summary>
     public class PluginConfig
     {

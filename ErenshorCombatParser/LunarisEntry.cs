@@ -10,41 +10,43 @@ namespace ErenshorCombatParser
 {
     [LunarisPlugin("PerfectParse", PluginCore.PluginVersion, "Jeris",
         "Combat parser with DPS/HPS tracking and HTML reports")]
-    public class LunarisEntry : Lunaris.LunarisPlugin
+    public class LunarisEntry : LunarisPlugin
     {
         private PluginCore _core;
 
         private void Awake()
         {
-            // Wire logging to Lunaris ILog
+            // Wire logging to Lunaris
             Log.Info = s => Logging.LogInfo(s);
             Log.Warning = s => Logging.LogWarning(s);
             Log.Error = s => Logging.LogError(s);
 
-            // Read config via Lunaris low-level API
+            // Register configuration via Lunaris
+            var settings = Config.Register<LunarisConfig>().Get();
+
             var config = new PluginConfig
             {
-                EncounterToggleKey = Config.Read("EncounterToggle", KeyCode.F9),
-                GenerateReportKey = Config.Read("GenerateReport", KeyCode.F10),
-                ToggleWindowKey = Config.Read("ToggleWindow", KeyCode.F11),
-                IdleTimeout = Config.Read("IdleTimeout", 5f),
-                EnableLogging = Config.Read("EnableLogging", true),
-                OutputDirectory = Config.Read("OutputDirectory", ""),
-                OpenInOverlay = Config.Read("OpenInOverlay", true),
-                MaxLogSizeMB = Config.Read("MaxLogSizeMB", 25),
-                OpenReportOnExit = Config.Read("OpenReportOnExit", false),
-                LogEnvironmental = Config.Read("LogEnvironmental", false),
-                WindowX = Config.Read("WindowX", 20f),
-                WindowY = Config.Read("WindowY", 20f),
-                WindowWidth = Config.Read("WindowWidth", 560f),
-                WindowHeight = Config.Read("WindowHeight", 420f),
-                WindowFontSize = Config.Read("FontSize", 11),
+                EncounterToggleKey = settings.EncounterToggle,
+                GenerateReportKey = settings.GenerateReport,
+                ToggleWindowKey = settings.ToggleWindow,
+                IdleTimeout = ParseInt(settings.IdleTimeout, 5),
+                EnableLogging = settings.EnableLogging,
+                OutputDirectory = settings.OutputDirectory,
+                OpenInOverlay = settings.OpenInOverlay,
+                MaxLogSizeMB = ParseInt(settings.MaxLogSizeMB, 25),
+                OpenReportOnExit = settings.OpenReportOnExit,
+                LogEnvironmental = settings.LogEnvironmental,
+                WindowX = ParseInt(settings.WindowX, 20),
+                WindowY = ParseInt(settings.WindowY, 20),
+                WindowWidth = ParseInt(settings.WindowWidth, 560),
+                WindowHeight = ParseInt(settings.WindowHeight, 420),
+                WindowFontSize = ParseInt(settings.FontSize, 11),
                 PersistWindowRect = (x, y, w, h) =>
                 {
-                    Config.Write("WindowX", x);
-                    Config.Write("WindowY", y);
-                    Config.Write("WindowWidth", w);
-                    Config.Write("WindowHeight", h);
+                    settings.WindowX = ((int)x).ToString();
+                    settings.WindowY = ((int)y).ToString();
+                    settings.WindowWidth = ((int)w).ToString();
+                    settings.WindowHeight = ((int)h).ToString();
                     Config.Save();
                 }
             };
@@ -53,6 +55,13 @@ namespace ErenshorCombatParser
             string pluginPath = Path.Combine(Application.dataPath, "..", "plugins");
             _core = new PluginCore(config, pluginPath);
             _core.Initialize();
+        }
+
+        private static int ParseInt(string value, int fallback)
+        {
+            if (int.TryParse(value, out int result))
+                return result;
+            return fallback;
         }
 
         private void Update() => _core?.OnUpdate();

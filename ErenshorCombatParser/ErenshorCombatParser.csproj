@@ -8,25 +8,29 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
+  <!-- Auto-detect game path: prefer Playtest, fall back to release -->
   <PropertyGroup>
-    <GameDir>C:\Program Files (x86)\Steam\steamapps\common\Erenshor Playtest</GameDir>
-    <BepInExDir>$(GameDir)\BepInEx\core</BepInExDir>
+    <ErenshorPlaytestPath>C:\Program Files (x86)\Steam\steamapps\common\Erenshor Playtest</ErenshorPlaytestPath>
+    <ErenshorReleasePath>C:\Program Files (x86)\Steam\steamapps\common\Erenshor</ErenshorReleasePath>
+    <GameDir Condition="Exists('$(ErenshorPlaytestPath)\Erenshor_Data\Managed\Assembly-CSharp.dll')">$(ErenshorPlaytestPath)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('$(ErenshorReleasePath)\Erenshor_Data\Managed\Assembly-CSharp.dll')">$(ErenshorReleasePath)</GameDir>
     <ManagedDir>$(GameDir)\Erenshor_Data\Managed</ManagedDir>
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="BepInEx">
-      <HintPath>$(BepInExDir)\BepInEx.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <!-- Harmony (bundled with Lunaris at runtime) -->
     <Reference Include="0Harmony">
-      <HintPath>$(BepInExDir)\0Harmony.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
+
+    <!-- Lunaris mod loader -->
     <Reference Include="Lunaris">
       <HintPath>$(GameDir)\Lunaris.dll</HintPath>
       <Private>false</Private>
     </Reference>
+
+    <!-- Game assemblies -->
     <Reference Include="Assembly-CSharp">
       <HintPath>$(ManagedDir)\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
@@ -60,5 +64,15 @@
       <Private>false</Private>
     </Reference>
   </ItemGroup>
+
+  <!-- Deploy to Lunaris plugins/ folder -->
+  <Target Name="DeployLunaris" AfterTargets="Build" Condition="'$(GameDir)' != '' And Exists('$(GameDir)\Lunaris.dll')">
+    <PropertyGroup>
+      <PluginFolder>$(GameDir)\plugins\PerfectParse</PluginFolder>
+    </PropertyGroup>
+    <MakeDir Directories="$(PluginFolder)" Condition="!Exists('$(PluginFolder)')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginFolder)" />
+    <Message Importance="high" Text="Copied $(TargetFileName) to $(PluginFolder)" />
+  </Target>
 
 </Project>

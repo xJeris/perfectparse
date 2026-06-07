@@ -82,18 +82,17 @@ namespace PerfectParseReport
                 // If exe is in the plugins folder alongside the mod
                 Path.Combine(exeDir, "logs"),
                 Path.Combine(exeDir, "PerfectParse", "logs"),
-                // Common BepInEx plugin paths
+                // Lunaris plugin paths
                 Path.Combine(exeDir, "..", "PerfectParse", "logs"),
-                Path.Combine(exeDir, "..", "..", "BepInEx", "plugins", "PerfectParse", "logs"),
             };
 
             // Discover Steam library folders and add game log paths
             foreach (string lib in FindSteamLibraryFolders())
             {
                 searchDirs.Add(Path.Combine(lib, "steamapps", "common",
-                    "Erenshor Playtest", "BepInEx", "plugins", "PerfectParse", "logs"));
+                    "Erenshor Playtest", "plugins", "PerfectParse", "logs"));
                 searchDirs.Add(Path.Combine(lib, "steamapps", "common",
-                    "Erenshor", "BepInEx", "plugins", "PerfectParse", "logs"));
+                    "Erenshor", "plugins", "PerfectParse", "logs"));
             }
 
             foreach (string dir in searchDirs)

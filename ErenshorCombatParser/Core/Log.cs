@@ -3,10 +3,8 @@ using System;
 namespace ErenshorCombatParser.Core
 {
     /// <summary>
-    /// Loader-agnostic logging abstraction. Each entry point (BepInEx Plugin
-    /// or Lunaris LunarisEntry) wires these delegates to its own logging API
-    /// during Awake(). Patch files and shared code use these instead of
-    /// referencing BepInEx.Logging directly.
+    /// Logging abstraction. LunarisEntry wires these delegates to the Lunaris
+    /// logging API during Awake(). Shared code uses these throughout.
     /// </summary>
     public static class Log
     {

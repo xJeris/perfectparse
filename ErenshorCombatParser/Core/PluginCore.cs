@@ -10,15 +10,14 @@ using ErenshorCombatParser.UI;
 namespace ErenshorCombatParser.Core
 {
     /// <summary>
-    /// Shared plugin logic used by both BepInEx and Lunaris entry points.
-    /// Not a MonoBehaviour — instantiated by the active entry point and
-    /// driven via OnUpdate/OnGUI/Shutdown calls.
+    /// Core plugin logic instantiated by LunarisEntry and driven via
+    /// OnUpdate/OnGUI/Shutdown calls. Not a MonoBehaviour.
     /// </summary>
     public class PluginCore
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.4.0";
+        public const string PluginVersion = "0.4.2";
 
         private readonly PluginConfig _config;
         private Harmony _harmony;
