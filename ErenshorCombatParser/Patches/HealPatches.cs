@@ -128,9 +128,7 @@ namespace ErenshorCombatParser.Patches
         /// </summary>
         public static void ClearState()
         {
-            _preHealHP.Clear();
-            _preTickHP.Clear();
-            _activeHoTs.Clear();
+            // State is now per-invocation via Harmony __state structs — nothing to clear.
         }
 
         // ============================================================
@@ -193,27 +191,25 @@ namespace ErenshorCombatParser.Patches
         // ============================================================
         // Stats.HealMe(int) — simple heal prefix/postfix
         // ============================================================
-        private static readonly Dictionary<int, int> _preHealHP = new Dictionary<int, int>();
-        static void HealMe_Simple_Prefix(Stats __instance)
+        public struct SimpleHealState
+        {
+            public int PreHP;
+        }
+
+        static void HealMe_Simple_Prefix(Stats __instance, ref SimpleHealState __state)
         {
             try
             {
-                _preHealHP[__instance.GetInstanceID()] = __instance.CurrentHP;
+                __state.PreHP = __instance.CurrentHP;
             }
             catch (Exception) { }
         }
 
-        static void HealMe_Simple_Postfix(Stats __instance, int _amt)
+        static void HealMe_Simple_Postfix(Stats __instance, int _amt, SimpleHealState __state)
         {
             try
             {
-                int preHP;
-                if (!_preHealHP.TryGetValue(__instance.GetInstanceID(), out preHP))
-                    return;
-
-                _preHealHP.Remove(__instance.GetInstanceID());
-
-                int actualHealed = __instance.CurrentHP - preHP;
+                int actualHealed = __instance.CurrentHP - __state.PreHP;
                 if (actualHealed <= 0) return; // no healing occurred
 
                 // HealMe(int) is a self-heal (lifesteal, lifetap, regen, etc.)
@@ -242,22 +238,24 @@ namespace ErenshorCombatParser.Patches
         // Stats.TickEffects — per-slot HoT tracking
         // ============================================================
 
-        private struct HoTInfo
+        public struct HoTInfo
         {
             public string SpellName;
             public Character Owner; // deferred — only resolved if healing occurs
             public int ExpectedAmount;
         }
 
-        private static readonly Dictionary<int, int> _preTickHP = new Dictionary<int, int>();
-        private static readonly Dictionary<int, List<HoTInfo>> _activeHoTs = new Dictionary<int, List<HoTInfo>>();
+        public struct TickEffectsState
+        {
+            public int PreHP;
+            public List<HoTInfo> ActiveHoTs;
+        }
 
-        static void TickEffects_Prefix(Stats __instance)
+        static void TickEffects_Prefix(Stats __instance, ref TickEffectsState __state)
         {
             try
             {
-                int id = __instance.GetInstanceID();
-                _preTickHP[id] = __instance.CurrentHP;
+                __state.PreHP = __instance.CurrentHP;
 
                 // Scan all 30 status effect slots for active HoTs, mirroring the
                 // game's TickEffects condition (Stats.cs line 1540):
@@ -310,31 +308,17 @@ namespace ErenshorCombatParser.Patches
                     }
                 }
 
-                if (hots != null)
-                    _activeHoTs[id] = hots;
-                else
-                    _activeHoTs.Remove(id);
+                __state.ActiveHoTs = hots;
             }
             catch (Exception) { }
         }
 
-        static void TickEffects_Postfix(Stats __instance)
+        static void TickEffects_Postfix(Stats __instance, TickEffectsState __state)
         {
             try
             {
-                int id = __instance.GetInstanceID();
-                int preHP;
-                if (!_preTickHP.TryGetValue(id, out preHP))
-                    return;
-
-                _preTickHP.Remove(id);
-
-                int delta = __instance.CurrentHP - preHP;
-                if (delta <= 0)
-                {
-                    _activeHoTs.Remove(id);
-                    return;
-                }
+                int delta = __instance.CurrentHP - __state.PreHP;
+                if (delta <= 0) return;
 
                 string targetId = __instance.Myself != null
                     ? EntityRegistry.ResolveId(__instance.Myself)
@@ -342,11 +326,10 @@ namespace ErenshorCombatParser.Patches
 
                 long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-                List<HoTInfo> hots;
-                if (!_activeHoTs.TryGetValue(id, out hots) || hots.Count == 0)
+                var hots = __state.ActiveHoTs;
+                if (hots == null || hots.Count == 0)
                 {
                     // Fallback: no HoT slots found but HP increased — generic event
-                    _activeHoTs.Remove(id);
                     CombatEventBus.EmitHeal(new HealEvent
                     {
                         Timestamp = now,
@@ -361,8 +344,6 @@ namespace ErenshorCombatParser.Patches
                     }, __instance.Myself, __instance.Myself);
                     return;
                 }
-
-                _activeHoTs.Remove(id);
 
                 // Distribute actual delta proportionally across active HoTs
                 // based on their expected tick amounts

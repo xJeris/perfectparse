@@ -59,6 +59,29 @@ namespace ErenshorCombatParser.Patches
         private static int _bleedMapCleanupFrame = -1;
         private static readonly List<BleedKey> _staleBleedKeys = new List<BleedKey>();
 
+        // Last DamageMe result tracking — used by FinalePatches to compute
+        // correct Finale amount by subtracting the wand hit that preceded it.
+        private static Character _lastDmgTarget;
+        private static int _lastDmgAmount;
+        private static int _lastDmgFrame = -1;
+
+        /// <summary>
+        /// Returns and clears the last DamageMe amount for the given target
+        /// if it occurred in the current frame. Returns 0 otherwise.
+        /// </summary>
+        public static int ConsumeLastDamage(Character target)
+        {
+            if (target != null && ReferenceEquals(target, _lastDmgTarget)
+                && _lastDmgFrame == UnityEngine.Time.frameCount)
+            {
+                int amount = _lastDmgAmount;
+                _lastDmgTarget = null;
+                _lastDmgAmount = 0;
+                return amount;
+            }
+            return 0;
+        }
+
         /// <summary>
         /// Clears cached state that could leak between sessions (e.g. scene changes).
         /// </summary>
@@ -71,6 +94,9 @@ namespace ErenshorCombatParser.Patches
             _pendingBleedSkill.Clear();
             _bleedMapCleanupFrame = -1;
             _staleBleedKeys.Clear();
+            _lastDmgTarget = null;
+            _lastDmgAmount = 0;
+            _lastDmgFrame = -1;
         }
 
         public static void Apply(Harmony harmony)
@@ -215,6 +241,14 @@ namespace ErenshorCombatParser.Patches
                 bool isCrit = _criticalHit || critOverride;
 
                 string source = CombatContext.Get(_attacker) ?? "Melee";
+
+                // Record last damage for FinalePatches to subtract from PreHP
+                if (__result > 0)
+                {
+                    _lastDmgTarget = __instance;
+                    _lastDmgAmount = __result;
+                    _lastDmgFrame = UnityEngine.Time.frameCount;
+                }
 
                 CombatEventBus.EmitDamage(new CombatEvent
                 {
