@@ -59,6 +59,29 @@ namespace ErenshorCombatParser.Patches
         private static int _bleedMapCleanupFrame = -1;
         private static readonly List<BleedKey> _staleBleedKeys = new List<BleedKey>();
 
+        // DOT tick attribution: when inside Stats.TickEffects(), DamageMe calls
+        // for status effect ticks get their source from the effect's SpellName
+        // instead of CombatContext (which may hold stale "Melee" from a concurrent
+        // auto-attack). Queues are keyed by (attacker, dmgType) to handle resisted
+        // ticks that skip the DamageMe call without desynchronizing.
+        private static bool _inTickEffects;
+        private static Character _tickEffectsTarget;
+        private struct DotKey : IEquatable<DotKey>
+        {
+            public Character Attacker;
+            public GameData.DamageType DmgType;
+            public bool Equals(DotKey other) =>
+                ReferenceEquals(Attacker, other.Attacker) && DmgType == other.DmgType;
+            public override bool Equals(object obj) => obj is DotKey k && Equals(k);
+            public override int GetHashCode()
+            {
+                unchecked { return (Attacker != null ? Attacker.GetHashCode() : 0) * 397 ^ (int)DmgType; }
+            }
+        }
+        private static readonly Dictionary<DotKey, Queue<string>> _dotQueues = new Dictionary<DotKey, Queue<string>>();
+        // Reusable queue pool to avoid allocations each tick
+        private static readonly List<Queue<string>> _dotQueuePool = new List<Queue<string>>();
+
         // Last DamageMe result tracking — used by FinalePatches to compute
         // correct Finale amount by subtracting the wand hit that preceded it.
         private static Character _lastDmgTarget;
@@ -97,6 +120,14 @@ namespace ErenshorCombatParser.Patches
             _lastDmgTarget = null;
             _lastDmgAmount = 0;
             _lastDmgFrame = -1;
+            _inTickEffects = false;
+            _tickEffectsTarget = null;
+            foreach (var kvp in _dotQueues)
+            {
+                kvp.Value.Clear();
+                _dotQueuePool.Add(kvp.Value);
+            }
+            _dotQueues.Clear();
         }
 
         public static void Apply(Harmony harmony)
@@ -183,6 +214,19 @@ namespace ErenshorCombatParser.Patches
             }
             else Log.Error("Could not find Character.EnvironmentalDamageMe");
 
+            // TickEffects — DOT tick attribution
+            var tickFx = typeof(Stats).GetMethod("TickEffects",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (tickFx != null)
+            {
+                harmony.Patch(tickFx,
+                    prefix: new HarmonyMethod(self.GetMethod("TickEffects_Prefix",
+                        BindingFlags.Static | BindingFlags.NonPublic)),
+                    postfix: new HarmonyMethod(self.GetMethod("TickEffects_Postfix",
+                        BindingFlags.Static | BindingFlags.NonPublic)));
+            }
+            else Log.Error("Could not find Stats.TickEffects");
+
             // AddStatusEffect — capture originating skill name for bleed effects.
             // 4-param overload (called by UseSkill.DoSkill with _specificCaster)
             var addSE4 = typeof(Stats).GetMethod("AddStatusEffect",
@@ -240,7 +284,20 @@ namespace ErenshorCombatParser.Patches
                 bool critOverride = CombatContext.ConsumeCrit(_attacker);
                 bool isCrit = _criticalHit || critOverride;
 
-                string source = CombatContext.Get(_attacker) ?? "Melee";
+                // If we're inside TickEffects, attribute this damage to the DOT
+                // spell name instead of whatever CombatContext holds (which may
+                // be "Melee" from a concurrent auto-attack in the same frame).
+                string source = null;
+                if (_inTickEffects && ReferenceEquals(__instance, _tickEffectsTarget)
+                    && _attacker != null)
+                {
+                    var dotKey = new DotKey { Attacker = _attacker, DmgType = _dmgType };
+                    Queue<string> dotQueue;
+                    if (_dotQueues.TryGetValue(dotKey, out dotQueue) && dotQueue.Count > 0)
+                        source = "Spell:" + dotQueue.Dequeue();
+                }
+                if (source == null)
+                    source = CombatContext.Get(_attacker) ?? "Melee";
 
                 // Record last damage for FinalePatches to subtract from PreHP
                 if (__result > 0)
@@ -467,6 +524,66 @@ namespace ErenshorCombatParser.Patches
                 }, effectiveAttacker, __instance);
             }
             catch (Exception) { }
+        }
+
+        // ============================================================
+        // TickEffects prefix/postfix — DOT tick attribution
+        // ============================================================
+
+        static void TickEffects_Prefix(Stats __instance)
+        {
+            try
+            {
+                _inTickEffects = true;
+                _tickEffectsTarget = __instance.Myself;
+
+                // Return all current queues to the pool, then clear the dictionary
+                foreach (var kvp in _dotQueues)
+                {
+                    kvp.Value.Clear();
+                    _dotQueuePool.Add(kvp.Value);
+                }
+                _dotQueues.Clear();
+
+                var effects = __instance.StatusEffects;
+                if (effects == null) return;
+
+                for (int i = 0; i < effects.Length; i++)
+                {
+                    if (effects[i] == null || effects[i].Effect == null) continue;
+                    var effect = effects[i].Effect;
+                    if (effect.TargetDamage > 0 && effects[i].Duration > 0f)
+                    {
+                        var attacker = effects[i].CreditDPS;
+                        if (attacker == null) continue;
+
+                        var key = new DotKey { Attacker = attacker, DmgType = effect.MyDamageType };
+                        Queue<string> queue;
+                        if (!_dotQueues.TryGetValue(key, out queue))
+                        {
+                            // Grab a queue from the pool or create a new one
+                            if (_dotQueuePool.Count > 0)
+                            {
+                                queue = _dotQueuePool[_dotQueuePool.Count - 1];
+                                _dotQueuePool.RemoveAt(_dotQueuePool.Count - 1);
+                            }
+                            else
+                            {
+                                queue = new Queue<string>();
+                            }
+                            _dotQueues[key] = queue;
+                        }
+                        queue.Enqueue(effect.SpellName ?? "Unknown");
+                    }
+                }
+            }
+            catch (Exception) { }
+        }
+
+        static void TickEffects_Postfix()
+        {
+            _inTickEffects = false;
+            _tickEffectsTarget = null;
         }
 
         static void SelfDamageMe_Postfix(

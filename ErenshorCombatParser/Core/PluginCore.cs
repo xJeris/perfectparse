@@ -17,7 +17,7 @@ namespace ErenshorCombatParser.Core
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.4.4";
+        public const string PluginVersion = "0.4.5";
 
         private readonly PluginConfig _config;
         private Harmony _harmony;
