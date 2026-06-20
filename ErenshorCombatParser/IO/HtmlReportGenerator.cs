@@ -182,12 +182,22 @@ namespace ErenshorCombatParser.IO
             int start = json.IndexOf(pattern, StringComparison.Ordinal);
             if (start < 0) return null;
             start += pattern.Length;
-            // Find the closing quote, skipping escaped quotes
+            // Find the closing quote, skipping escaped quotes.
+            // A quote is escaped only if preceded by an odd number of backslashes.
             int end = start;
             while (end < json.Length)
             {
-                if (json[end] == '"' && (end == 0 || json[end - 1] != '\\'))
-                    break;
+                if (json[end] == '"')
+                {
+                    int backslashes = 0;
+                    int scan = end - 1;
+                    while (scan >= start && json[scan] == '\\')
+                    {
+                        backslashes++;
+                        scan--;
+                    }
+                    if (backslashes % 2 == 0) break; // even = real quote
+                }
                 end++;
             }
             if (end >= json.Length) return null;

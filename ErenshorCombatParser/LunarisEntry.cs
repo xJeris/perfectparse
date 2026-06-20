@@ -29,7 +29,7 @@ namespace ErenshorCombatParser
                 EncounterToggleKey = settings.EncounterToggle,
                 GenerateReportKey = settings.GenerateReport,
                 ToggleWindowKey = settings.ToggleWindow,
-                IdleTimeout = ParseInt(settings.IdleTimeout, 5),
+                IdleTimeout = ParseFloat(settings.IdleTimeout, 5f),
                 EnableLogging = settings.EnableLogging,
                 OutputDirectory = settings.OutputDirectory,
                 OpenInOverlay = settings.OpenInOverlay,
@@ -55,6 +55,14 @@ namespace ErenshorCombatParser
             string pluginPath = Path.Combine(Application.dataPath, "..", "plugins");
             _core = new PluginCore(config, pluginPath);
             _core.Initialize();
+        }
+
+        private static float ParseFloat(string value, float fallback)
+        {
+            if (float.TryParse(value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out float result))
+                return result;
+            return fallback;
         }
 
         private static int ParseInt(string value, int fallback)

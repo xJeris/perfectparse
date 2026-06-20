@@ -17,7 +17,7 @@ namespace ErenshorCombatParser.Core
     {
         public const string PluginGUID = "com.erenshor.perfectparse";
         public const string PluginName = "PerfectParse";
-        public const string PluginVersion = "0.4.5";
+        public const string PluginVersion = "0.4.8";
 
         private readonly PluginConfig _config;
         private Harmony _harmony;
@@ -97,7 +97,7 @@ namespace ErenshorCombatParser.Core
                 GenerateReport();
             }
 
-            if (Input.GetKeyDown(_config.ToggleWindowKey))
+            if (Input.GetKeyDown(_config.ToggleWindowKey) && _combatWindow != null)
             {
                 _combatWindow.Visible = !_combatWindow.Visible;
             }
@@ -169,7 +169,6 @@ namespace ErenshorCombatParser.Core
             CombatContext.Reset();
             ResonanceContext.Reset();
             Patches.DamagePatches.ClearState();
-            Patches.HealPatches.ClearState();
         }
 
         private bool IsInGameplay()
@@ -251,7 +250,6 @@ namespace ErenshorCombatParser.Core
                 EncounterTracker.Reset();
                 _combatWindow?.Reset();
                 Patches.DamagePatches.ClearState();
-                Patches.HealPatches.ClearState();
             }
         }
 

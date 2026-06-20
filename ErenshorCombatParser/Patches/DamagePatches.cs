@@ -483,7 +483,7 @@ namespace ErenshorCombatParser.Patches
                     }
                 }
             }
-            catch (Exception) { }
+            catch (Exception ex) { Log.Warning("BleedDamageMe_Prefix: " + ex.Message); }
         }
 
         static void BleedDamageMe_Postfix(
@@ -523,7 +523,7 @@ namespace ErenshorCombatParser.Patches
                     Source = source
                 }, effectiveAttacker, __instance);
             }
-            catch (Exception) { }
+            catch (Exception ex) { Log.Warning("BleedDamageMe_Postfix: " + ex.Message); }
         }
 
         // ============================================================
@@ -577,7 +577,7 @@ namespace ErenshorCombatParser.Patches
                     }
                 }
             }
-            catch (Exception) { }
+            catch (Exception ex) { Log.Warning("DmgTickEffects_Prefix: " + ex.Message); }
         }
 
         static void TickEffects_Postfix()

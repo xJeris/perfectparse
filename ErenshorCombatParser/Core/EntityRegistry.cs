@@ -81,7 +81,11 @@ namespace ErenshorCombatParser.Core
             }
             else if (isPet)
             {
-                id = "Pet:" + c.GetInstanceID() + ":" + entityName;
+                // Key by owner name + pet name instead of instance ID so the
+                // same pet doesn't create duplicate entries after zone changes
+                // or cache clears. Each owner can only have one pet at a time.
+                string ownerName = c.Master != null ? c.Master.transform.name : "Unknown";
+                id = "Pet:" + ownerName + ":" + entityName;
                 type = EntitySnapshot.EntityType.Pet;
                 if (c.Master != null)
                     masterEntityId = Resolve(c.Master)?.Id;

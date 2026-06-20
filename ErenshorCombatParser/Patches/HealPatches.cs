@@ -123,14 +123,6 @@ namespace ErenshorCombatParser.Patches
             catch (Exception ex) { Log.Warning("ResolveSpell resonance patch failed: " + ex.Message); }
         }
 
-        /// <summary>
-        /// Clears cached state that could leak between sessions (e.g. scene changes).
-        /// </summary>
-        public static void ClearState()
-        {
-            // State is now per-invocation via Harmony __state structs — nothing to clear.
-        }
-
         // ============================================================
         // SpellVessel.ResolveSpell — resonance context
         // ============================================================
@@ -194,6 +186,7 @@ namespace ErenshorCombatParser.Patches
         public struct SimpleHealState
         {
             public int PreHP;
+            public string SpellName;
         }
 
         static void HealMe_Simple_Prefix(Stats __instance, ref SimpleHealState __state)
@@ -201,8 +194,23 @@ namespace ErenshorCombatParser.Patches
             try
             {
                 __state.PreHP = __instance.CurrentHP;
+
+                // Capture CombatContext now — it holds the spell/skill name from
+                // the prefix that fired earlier in the same frame (e.g. ResolveSpell
+                // sets "Spell:Lifetap Bolt", DoSkill sets "Skill:Drain Life").
+                // Reading in the prefix ensures we get it before anything clears it.
+                string ctx = __instance.Myself != null
+                    ? CombatContext.Get(__instance.Myself)
+                    : null;
+
+                if (ctx != null)
+                {
+                    // Strip the "Spell:" or "Skill:" prefix to show the actual name
+                    int colon = ctx.IndexOf(':');
+                    __state.SpellName = colon >= 0 ? ctx.Substring(colon + 1) : ctx;
+                }
             }
-            catch (Exception) { }
+            catch (Exception ex) { Log.Warning("HealMe_Simple_Prefix: " + ex.Message); }
         }
 
         static void HealMe_Simple_Postfix(Stats __instance, int _amt, SimpleHealState __state)
@@ -224,7 +232,7 @@ namespace ErenshorCombatParser.Patches
                     Type = "HealSimple",
                     SourceId = entityId,
                     TargetId = entityId,
-                    SpellName = "Self Heal",
+                    SpellName = __state.SpellName ?? "Self Heal",
                     RawAmount = _amt,
                     ActualAmount = actualHealed,
                     Critical = false,
@@ -278,16 +286,14 @@ namespace ErenshorCombatParser.Patches
                         if (slot.Duration <= 0f) continue;
                         if (effect.MyDamageType != GameData.DamageType.Physical) continue;
 
-                        // Skip equipment passive regen (WornEffect) — not a cast spell
-                        if (effect.WornEffect) continue;
-
                         // Check for destroyed Unity objects before accessing properties
                         var owner = slot.Owner;
                         bool ownerAlive = !ReferenceEquals(owner, null) && owner;
 
                         // Replicate the game's tick amount calculation (Stats.cs lines 1542-1549)
+                        // WornEffect (equipment passive regen) heals at flat value — no scaling
                         int expected = effect.TargetHealing;
-                        if (ownerAlive && owner.MyStats != null)
+                        if (!effect.WornEffect && ownerAlive && owner.MyStats != null)
                         {
                             expected += UnityEngine.Mathf.RoundToInt(
                                 (float)owner.MyStats.WisScaleMod / 100f
@@ -310,7 +316,7 @@ namespace ErenshorCombatParser.Patches
 
                 __state.ActiveHoTs = hots;
             }
-            catch (Exception) { }
+            catch (Exception ex) { Log.Warning("HealTickEffects_Prefix: " + ex.Message); }
         }
 
         static void TickEffects_Postfix(Stats __instance, TickEffectsState __state)

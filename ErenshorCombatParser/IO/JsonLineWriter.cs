@@ -116,12 +116,22 @@ namespace ErenshorCombatParser.IO
                             writer.Flush();
 
                             // Close current file and open new one
-                            writer.Dispose();
-
                             string newPath = _pendingRotatePath;
-                            _filePath = newPath;
-                            fs = new FileStream(newPath, FileMode.Append, FileAccess.Write, FileShare.Read);
-                            writer = new StreamWriter(fs, Encoding.UTF8);
+                            try
+                            {
+                                writer.Dispose();
+                                fs = new FileStream(newPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                                writer = new StreamWriter(fs, Encoding.UTF8);
+                                _filePath = newPath;
+                            }
+                            catch (Exception rotEx)
+                            {
+                                // Re-open the original file so writing can continue
+                                System.Diagnostics.Debug.WriteLine(
+                                    "[CombatParser] Rotate failed, keeping current file: " + rotEx.Message);
+                                fs = new FileStream(_filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                                writer = new StreamWriter(fs, Encoding.UTF8);
+                            }
 
                             _rotateDone.Set();
                         }
